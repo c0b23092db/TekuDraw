@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://c4bacvqi2mmy3"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_1vivr"]
+radius = 0.2
+
+[node name="MeshInstance3D" type="MeshInstance3D" unique_id=479168620]
+mesh = SubResource("CapsuleMesh_1vivr")

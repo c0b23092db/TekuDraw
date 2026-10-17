@@ -1,0 +1,11 @@
+.config/replay
+.config/objects
+docs/
+trash/
+objects/*
+!objects/sukuea.tscn
+# Godot 4+ specific ignores
+.godot/
+*.translation
+build/
+addons/godot_mcp_toolkit
