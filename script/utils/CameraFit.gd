@@ -1,14 +1,18 @@
 # 範囲（中心が原点、XZ の半幅 half_x / half_z）の四隅が収まる距離までカメラを引く
 extends RefCounted
 
-static func fit(cam: Camera3D, half_x: float, half_z: float, pitch_deg: float, fov: float, margin: float) -> void:
+# カメラを固定していないときの最初の位置（と「自動に戻す」）だけに使う。見たい位置はシミュレーションの中で動かして固定する
+const PITCH_DEG := 60.0  # 見下ろす角度（90 で真上から）
+const MARGIN := 1.05     # 範囲より少し広く写す倍率
+
+static func fit(cam: Camera3D, half_x: float, half_z: float, fov: float) -> void:
     cam.fov = fov
-    var dir := Vector3(0.0, sin(deg_to_rad(pitch_deg)), cos(deg_to_rad(pitch_deg)))
-    var up := Vector3.UP if pitch_deg < 89.9 else Vector3.FORWARD
+    var dir := Vector3(0.0, sin(deg_to_rad(PITCH_DEG)), cos(deg_to_rad(PITCH_DEG)))
+    var up := Vector3.UP
     var corners: Array[Vector3] = []
     for sx in [-1.0, 1.0]:
         for sz in [-1.0, 1.0]:
-            corners.append(Vector3(sx * half_x, 0.0, sz * half_z) * margin)
+            corners.append(Vector3(sx * half_x, 0.0, sz * half_z) * MARGIN)
     # 二分探索: 全部の角が視錐台に入る最小の距離
     var lo := 1.0
     var hi := 2000.0

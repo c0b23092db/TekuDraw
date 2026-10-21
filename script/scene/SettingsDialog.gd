@@ -1,7 +1,8 @@
 # 設定項目（Config.FIELDS と同じ形式）から入力欄を並べて編集するポップアップ
 # 左: 分類（セクション）の一覧 / 右: 選んだ分類の項目。分類が1つなら左は出さない
 # 数値は SpinBox（範囲・単位つき）、真偽値は CheckBox、"choices" は OptionButton、それ以外は LineEdit。説明（hint）はマウスを重ねると出る
-# "choices": "motion" の項目（動き）を変えると、fields_for(今の値) で項目を作り直す（スクリプトごとの項目が入れ替わる）
+# "choices": "motion" の項目（動き）を変えると、fields_for(今の値) で項目を作り直す（ページの下のスクリプトごとの項目が入れ替わる）
+# "heading" のある項目の前には、区切り線と見出しを出す
 # ダイアログを横に広げると入力欄が伸びる
 extends AcceptDialog
 
@@ -73,6 +74,14 @@ func _rebuild() -> void:
     _build.call_deferred(_fields_for.call(_values))
 
 func _add_row(grid: GridContainer, f: Dictionary, v: Variant) -> void:
+    if f.has("heading"):  # この項目から下は別のまとまり（動物体のページの、動きのスクリプトの項目）
+        for _i in range(2):
+            grid.add_child(HSeparator.new())
+        var heading := Label.new()
+        heading.text = f["heading"]
+        heading.add_theme_font_size_override("font_size", 18)
+        grid.add_child(heading)
+        grid.add_child(Control.new())
     var hint: String = f.get("hint", "")
     var label := Label.new()
     label.text = f["label"] + ("（?）" if hint else "")

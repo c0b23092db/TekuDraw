@@ -36,14 +36,16 @@ static func compile(src: String, name: String) -> GDScript:
 static func label(s: GDScript) -> String:
     return str(s.get_script_constant_map().get("LABEL", s.get_meta("file", "")))
 
-# スクリプトの FIELDS（Config.FIELDS と同じ書き方）。設定画面では LABEL の分類に並べる
+# スクリプトの FIELDS（Config.FIELDS と同じ書き方）。設定画面では動物体の項目の下に、LABEL の見出しをつけて並べる
 static func fields(s: GDScript) -> Array:
     var out := []
     if s == null:
         return out
     for f in s.get_script_constant_map().get("FIELDS", []):
         var f2: Dictionary = f.duplicate()
-        f2["section"] = label(s)
+        f2["section"] = "object"
+        if out.is_empty():
+            f2["heading"] = label(s) + " の設定"
         if Config.FIELDS.any(func(c: Dictionary) -> bool: return c["key"] == f2["key"]):
             push_warning("動きのスクリプトの項目名が全体の設定と同じです（別の名前にしてください）: " + f2["key"])
             continue

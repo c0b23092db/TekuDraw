@@ -112,7 +112,7 @@ func _clear_points(key: String) -> void:
     path_drawer.queue_redraw()
     _save()
 
-# 動物体ごとの設定（動き・人数・速さ など）。動きのスクリプトの項目は、左の一覧にスクリプトの名前で出る
+# 動物体ごとの設定（動き・人数・速さ など）。動きのスクリプトの項目は、ページの下にスクリプトの名前の見出しをつけて出る
 func _edit_object(index: int) -> void:
     if index < 0:
         print("エラー: 動物体が選択されていません")

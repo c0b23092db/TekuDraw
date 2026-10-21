@@ -38,9 +38,7 @@ var anticipation_time: float
 var turn_time: float
 var time_gap: float
 var yield_distance: float
-var camera_pitch_deg: float
 var camera_fov: float
-var camera_margin: float
 var random_seed: int
 var two_routes: bool
 
@@ -99,7 +97,7 @@ func _ready() -> void:
         setup_simulation(SceneStore.load_objects(), SceneStore.load_obstacles())
 
 func _fit_camera(cam: Camera3D) -> void:
-    CameraFit.fit(cam, spawn_half_x, spawn_half_z, camera_pitch_deg, camera_fov, camera_margin)
+    CameraFit.fit(cam, spawn_half_x, spawn_half_z, camera_fov)
 
 # 床（シーンの Plane）に設定の画像を貼る。res:// でなければプロジェクトの外のファイルとして読む
 # 画像が空・読めないときは、シーンのままの白い床
@@ -212,10 +210,14 @@ func _load_models() -> void:
         paths.append(SIMPLE_MODEL_PATH)
     else:
         # res:// はプロジェクトに取り込んだもの。それ以外（./mixamo など）は FBX ファイルをそのまま読む
-        var files := ResourceLoader.list_directory(human_model_dir) if human_model_dir.begins_with("res://") else DirAccess.get_files_at(human_model_dir)
-        for f in files:
-            if f.get_basename().ends_with("_Walking") and f.get_extension().to_lower() == "fbx":
-                paths.append(human_model_dir.path_join(f))
+        var model_dir := DirAccess.open(human_model_dir)
+        if model_dir == null:
+            paths.append(SIMPLE_MODEL_PATH)
+        else:
+            var files := ResourceLoader.list_directory(human_model_dir) if human_model_dir.begins_with("res://") else DirAccess.get_files_at(human_model_dir)
+            for f in files:
+                if f.get_basename().ends_with("_Walking") and f.get_extension().to_lower() == "fbx":
+                    paths.append(human_model_dir.path_join(f))
     for path in paths:
         var scene := _load_scene(path)
         if scene == null:

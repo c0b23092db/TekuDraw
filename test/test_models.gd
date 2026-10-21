@@ -6,8 +6,14 @@ extends SceneTree
 const Mgr := preload("res://script/SimulationManager3D.gd")
 
 func _initialize() -> void:
+    # フォルダが無いと _load_models() はカプセルで代わりに出すので、読む前に確かめる
+    const DIR := "res://objects/mixamo"
+    if not DirAccess.dir_exists_absolute(DIR):
+        print("test_models: SKIP（", DIR, " が無い）")
+        quit(0)
+        return
     var mgr: Node3D = Mgr.new()
-    mgr.human_model_dir = "res://objects/mixamo"
+    mgr.human_model_dir = DIR
     mgr.human_height = 1.7
     mgr._load_models()
     if mgr.models.is_empty():
