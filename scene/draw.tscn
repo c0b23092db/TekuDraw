@@ -14,6 +14,18 @@ position = Vector2(1400, 780)
 rotation = -3.1415925
 mesh = SubResource("BoxMesh_1vivr")
 
+[node name="Plane2" type="MeshInstance2D" parent="." unique_id=1682203990]
+modulate = Color(0.75, 0.75, 0.75, 1)
+position = Vector2(1400, 780)
+rotation = -3.1415925
+mesh = SubResource("BoxMesh_1vivr")
+
+[node name="Plane3" type="MeshInstance2D" parent="." unique_id=671435308]
+modulate = Color(0.75, 0.75, 0.75, 1)
+position = Vector2(1400, 780)
+rotation = -3.1415925
+mesh = SubResource("BoxMesh_1vivr")
+
 [node name="PathDrawer2D" type="Node2D" parent="." unique_id=1569415845]
 script = ExtResource("1_sb2pr")
 

@@ -1,5 +1,5 @@
 # Teku Draw
-**大学の卒業研究で開発している「物体追跡研究用データセット作成シミュレータ」**
+***大学の卒業研究で開発している「物体追跡研究用データセット作成シミュレータ」***
 
 ## 動作環境
 - [Godot Engine](https://godotengine.org/ja/)の**4.7.2**を使用できる環境
@@ -19,7 +19,7 @@
 未検証動作として、歩行と停止に類する`fbx`ファイルであれば、他のモデルでも動作する可能性があります。
 
 ## 論文
-
+- [Anticipation in a velocity-based model foian dynamics](https://juser.fz-juelich.de/record/893809/): 動物体の移動シミュレーション
 
 ## ライセンス
 [Apache License 2.0](./LICENSE)

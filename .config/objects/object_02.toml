@@ -1,0 +1,26 @@
+[object]
+
+name = "動物体2"
+points = []
+spawn_points = []
+goal_points = []
+motion = "random_walk.gd"
+join_nearest = true
+pedestrian_count = 5
+line_speed = 1.2
+walk_speed = 1.4
+speed_jitter = 0.2
+spacing_min = 0.5
+spacing_max = 2.0
+line_priority_min = 0.0
+line_priority_max = 1.0
+cross_priority_min = 0.0
+cross_priority_max = 1.0
+max_wait = 2.5
+size_jitter = 0.0
+lateral_jitter = 0.5
+cross_cost = 5.0
+spawn_interval = 0.5
+goal_min_distance = 5.0
+arrive_radius = 0.3
+
