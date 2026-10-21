@@ -15,6 +15,7 @@ const SECTION_LABELS := {
 
 # key は全セクションで重複させない（値は1つの Dictionary に平たく入れる）
 # "object" セクションは動物体ごとの設定。ここの値は新しい動物体の初期値
+# "line": true の項目は列の線があるときだけ使う（線の無い動物体の設定画面には出さない）
 const FIELDS := [
 	# 全体 #
     {"section": "simulation", "key": "random_seed", "label": "乱数のシード", "default": 0, "min": 0, "max": 2147483647, "step": 1, "hint": "0でランダム、0以外で固定再生"},
@@ -31,21 +32,21 @@ const FIELDS := [
     {"section": "simulation", "key": "camera_fov", "label": "カメラの画角", "default": 70.0, "min": 10.0, "max": 120.0, "step": 1.0, "suffix": "度", "hint": "縦の画角。出力する画像の写り方が変わる（カメラの位置はシミュレーションの中で動かして固定する）"},
     # 動物体の初期値 #
     {"section": "object", "key": "motion", "label": "動きのスクリプト", "default": "", "choices": "motion"},
-    {"section": "object", "key": "join_nearest", "label": "空いた列には近い所から入る", "default": true, "hint": "列に誰もいないとき、線の一番近い所から入る。外すと、決められた列に並ぶ動き（線の始点まで行って並ぶ）。"},
+    {"section": "object", "key": "join_nearest", "line": true, "label": "空いた列には近い所から入る", "default": true, "hint": "列に誰もいないとき、線の一番近い所から入る。外すと、決められた列に並ぶ動き（線の始点まで行って並ぶ）。"},
     {"section": "object", "key": "pedestrian_count", "label": "人数", "default": 30, "min": 0, "max": 500, "step": 1, "suffix": "人"},
-    {"section": "object", "key": "line_speed", "label": "列の進む速さ", "default": 1.25, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m/秒"},
+    {"section": "object", "key": "line_speed", "line": true, "label": "列の進む速さ", "default": 1.25, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m/秒"},
     {"section": "object", "key": "walk_speed", "label": "列に並んでいないときの速度", "default": 1.4, "min": 0.05, "max": 10.0, "step": 0.05, "suffix": "m/秒", "hint": "列の最後尾へ向かうときと、ランダムに歩くときの速さ"},
     {"section": "object", "key": "speed_jitter", "label": "歩く速さのばらつき", "default": 0.1, "min": 0.0, "max": 0.9, "step": 0.05, "hint": "列に並んでいないときの速さを、人ごとに ±この割合でばらつかせる。0.1 なら ±10%"},
-    {"section": "object", "key": "spacing_min", "label": "前の人との間隔（最小）", "default": 0.6, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
-    {"section": "object", "key": "spacing_max", "label": "前の人との間隔（最大）", "default": 1.9, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
-    {"section": "object", "key": "line_priority_min", "label": "道を譲る場面の優先度（最小）", "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05, "hint": "列に並んでいる人の値。横切る人の値より高ければ、横切る人が列の手前で待つ。低ければ列の人が止まって譲る"},
-    {"section": "object", "key": "line_priority_max", "label": "道を譲る場面の優先度（最大）", "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
+    {"section": "object", "key": "spacing_min", "line": true, "label": "前の人との間隔（最小）", "default": 0.6, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
+    {"section": "object", "key": "spacing_max", "line": true, "label": "前の人との間隔（最大）", "default": 1.9, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
+    {"section": "object", "key": "line_priority_min", "line": true, "label": "道を譲る場面の優先度（最小）", "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05, "hint": "列に並んでいる人の値。横切る人の値より高ければ、横切る人が列の手前で待つ。低ければ列の人が止まって譲る"},
+    {"section": "object", "key": "line_priority_max", "line": true, "label": "道を譲る場面の優先度（最大）", "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
     {"section": "object", "key": "cross_priority_min", "label": "列を横切る場面の優先度（最小）", "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05, "hint": "ランダムに歩く人が列を横切るときの値。列の人の値より高ければ、列の人が止まって譲る"},
     {"section": "object", "key": "cross_priority_max", "label": "列を横切る場面の優先度（最大）", "default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
     {"section": "object", "key": "max_wait", "label": "横切るのを待てる時間", "default": 5.0, "min": 0.0, "max": 600.0, "step": 0.5, "suffix": "秒", "hint": "これより長く待つと、優先度に関係なく横切る（列の人が止まる）"},
     {"section": "object", "key": "size_jitter", "label": "人の大きさのばらつき", "default": 0.0, "min": 0.0, "max": 0.5, "step": 0.05, "hint": "人の大きさ（見た目とぶつかる半径）を ±この割合でばらつかせる"},
-    {"section": "object", "key": "lateral_jitter", "label": "列の左右のぶれ幅", "default": 0.1, "min": 0.0, "max": 2.0, "step": 0.01, "suffix": "m", "hint": "列の中心線から左右にずれる最大の距離"},
-    {"section": "object", "key": "cross_cost", "label": "列の通過コスト", "default": 5.0, "min": 0.0, "max": 100.0, "step": 0.5, "suffix": "m", "hint": "この列の人の間を通り抜けるとき、道のりにこの距離を足して比べる（全体の設定の「二本の経路」が有効なとき）。大きいほど列の端を回り込む"},
+    {"section": "object", "key": "lateral_jitter", "line": true, "label": "列の左右のぶれ幅", "default": 0.1, "min": 0.0, "max": 2.0, "step": 0.01, "suffix": "m", "hint": "列の中心線から左右にずれる最大の距離"},
+    {"section": "object", "key": "cross_cost", "line": true, "label": "列の通過コスト", "default": 5.0, "min": 0.0, "max": 100.0, "step": 0.5, "suffix": "m", "hint": "この列の人の間を通り抜けるとき、道のりにこの距離を足して比べる（全体の設定の「二本の経路」が有効なとき）。大きいほど列の端を回り込む"},
     {"section": "object", "key": "spawn_interval", "label": "出現の間隔", "default": 0.0, "min": 0.0, "max": 60.0, "step": 0.1, "suffix": "秒", "hint": "開始時に1人ずつこの間隔で現れる。0 なら全員同時"},
 	# ぶつからない動き #
     {"section": "avoidance", "key": "body_radius", "label": "人の大きさ（半径）", "default": 0.2, "min": 0.05, "max": 2.0, "step": 0.01, "suffix": "m"},

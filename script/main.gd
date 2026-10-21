@@ -113,11 +113,14 @@ func _clear_points(key: String) -> void:
     _save()
 
 # 動物体ごとの設定（動き・人数・速さ など）。動きのスクリプトの項目は、ページの下にスクリプトの名前の見出しをつけて出る
+# 列の線が無ければ列の項目（"line": true）は出さない。値は消さないので、線を引けば元の値で出る
 func _edit_object(index: int) -> void:
     if index < 0:
         print("エラー: 動物体が選択されていません")
         return
     var obj: Dictionary = path_drawer.objects[index]
+    var has_line: bool = obj["points"].size() >= 2
+    var common := Config.fields_in("object").filter(func(f: Dictionary) -> bool: return has_line or not f.get("line", false))
     dialog.open("%s の設定" % obj["name"], [], obj,
         func(values: Dictionary) -> void:
             obj.merge(values, true)
@@ -125,7 +128,7 @@ func _edit_object(index: int) -> void:
         {"object": "動物体"},
         func(values: Dictionary) -> Array:
             var m: String = values.get("motion", "")
-            return Config.fields_in("object") + (Motion.fields(Motion.compile(Motion.source(m), m)) if m != "" else []))
+            return common + (Motion.fields(Motion.compile(Motion.source(m), m)) if m != "" else []))
 
 # 全体設定（./.config/general.toml）
 func _on_setting_pressed() -> void:
