@@ -37,10 +37,10 @@ motion = ""
 
 [avoidance]
 
-body_radius = 0.25
+body_radius = 0.2
 avoid_radius = 2.0
 avoid_strength = 3.0
-yield_distance = 0.5
+yield_distance = 0.2
 avoid_range = 0.1
 anticipation_time = 1.0
 turn_time = 0.3
