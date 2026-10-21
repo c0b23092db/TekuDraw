@@ -1,9 +1,9 @@
 .config/replay
 .config/objects
-docs/
+.config/picture
 trash/
-objects/*
-!objects/sukuea.tscn
+README/中間発表
+README/論文
 # Godot 4+ specific ignores
 .godot/
 *.translation

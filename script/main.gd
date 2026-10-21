@@ -17,6 +17,7 @@ const Motion := preload("res://script/core/Motion.gd")
 @onready var clear_goal_button: Button = $"Panel/VBoxContainer/Object/削除/目的地削除"
 @onready var object_list: ItemList = $Panel/VBoxContainer/ItemList
 @onready var setting_button: Button = $Panel/VBoxContainer/Config
+@onready var explanation: Label = $Panel/explanation  # 今のモードの操作説明
 @onready var path_drawer: Node2D = $"../PathDrawer2D"
 
 var dialog := SettingsDialog.new()
@@ -64,6 +65,7 @@ func _save() -> void:
 func _select(index: int) -> void:
     path_drawer.mode = PathDrawer.Mode.OBJECT
     path_drawer.selected = index
+    explanation.text = "左ドラッグ: 列　／　右ドラッグ: 出現地　／　Shift+左ドラッグ: 目的地"
     if index >= 0:
         object_list.select(index)
     path_drawer.queue_redraw()
@@ -71,6 +73,7 @@ func _select(index: int) -> void:
 func _on_obstacle_pressed() -> void:
     path_drawer.mode = PathDrawer.Mode.OBSTACLE
     path_drawer.selected = -1
+    explanation.text = "左ドラッグ: 障害物を置く　／　右クリック: 障害物を撤去"
     object_list.deselect_all()
     path_drawer.queue_redraw()
 

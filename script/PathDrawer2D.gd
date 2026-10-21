@@ -61,13 +61,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _draw() -> void:
 	for r in obstacles:
 		draw_rect(r, obstacle_color)
-	if mode == Mode.OBSTACLE:
-		draw_string(ThemeDB.fallback_font, Vector2(190, 705), "左ドラッグ: 障害物を置く　／　右クリック: 障害物を撤去", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.BLACK)
 	if is_drawing and mode == Mode.OBSTACLE:
 		draw_rect(Rect2(drag_start, get_local_mouse_position() - drag_start).abs(), obstacle_color, false, 2.0)
-
-	if mode == Mode.OBJECT:
-		draw_string(ThemeDB.fallback_font, Vector2(190, 705), "左ドラッグ: 列　／　右ドラッグ: 出現地　／　Shift+左ドラッグ: 目的地", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.BLACK)
 
 	for i in range(objects.size()):
 		# 出現地は長い破線、目的地は短い点線（列の線と見分ける）。点1つならその場所に小さな丸

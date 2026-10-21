@@ -3,6 +3,16 @@
 [ext_resource type="Script" uid="uid://pd61osg7iuou" path="res://script/DatasetExporter.gd" id="2_nrpyo"]
 [ext_resource type="Script" uid="uid://sbwksub0lhqt" path="res://script/SimulationManager3D.gd" id="3_ke4kd"]
 
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8agc3"]
+
+[sub_resource type="Sky" id="Sky_8agc3"]
+resource_local_to_scene = true
+sky_material = SubResource("ProceduralSkyMaterial_8agc3")
+
+[sub_resource type="Environment" id="Environment_1vivr"]
+background_mode = 2
+sky = SubResource("Sky_8agc3")
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l6e8t"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_l6e8t"]
@@ -18,15 +28,25 @@ size = Vector3(500, 2, 500)
 size = Vector3(2, 2, 2)
 
 [sub_resource type="BoxMesh" id="BoxMesh_1vivr"]
-size = Vector3(500, 200, 2)
+size = Vector3(500, 100, 2)
 
 [sub_resource type="BoxMesh" id="BoxMesh_gngvs"]
-size = Vector3(2, 200, 500)
+size = Vector3(2, 100, 500)
 
 [node name="Simulation" type="Node3D" unique_id=325288774]
 
+[node name="MainCamera" type="Camera3D" parent="." unique_id=1023212021]
+transform = Transform3D(1, 0, 0, 0, 0.49999997, 0.86602545, 0, -0.86602545, 0.49999997, 0, 30, 15)
+fov = 70.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1462079394]
+environment = SubResource("Environment_1vivr")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1488399604]
+transform = Transform3D(1, 0, 0, 0, 0.17364824, 0.9848078, 0, -0.9848078, 0.17364824, 0, 50, 0)
+
 [node name="Plane" type="MeshInstance3D" parent="." unique_id=871420825]
-transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0, -0.25, 0)
+transform = Transform3D(1, 0, 0, 0, 0.25, 0, 0, 0, 1, 0, -0.25, 0)
 material_override = SubResource("StandardMaterial3D_l6e8t")
 mesh = SubResource("BoxMesh_l6e8t")
 
@@ -69,15 +89,61 @@ cast_shadow = 0
 mesh = SubResource("BoxMesh_gngvs")
 metadata/_edit_lock_ = true
 
-[node name="MainCamera" type="Camera3D" parent="." unique_id=1023212021]
-transform = Transform3D(1, 0, 0, 0, 0.49999997, 0.86602545, 0, -0.86602545, 0.49999997, 0, 30, 15)
-fov = 70.0
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1488399604]
-transform = Transform3D(1, 0, 0, 0, 0.17364822, 0.9848077, 0, -0.9848077, 0.17364822, 0, 50, 0)
-
 [node name="DatasetExporter" type="Node" parent="." unique_id=373718961]
 script = ExtResource("2_nrpyo")
 
 [node name="SimulationManager3D" type="Node3D" parent="." unique_id=1933215158]
 script = ExtResource("3_ke4kd")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=122339237]
+
+[node name="Panel" type="Panel" parent="CanvasLayer" unique_id=1558102205]
+anchors_preset = -1
+anchor_right = 0.26953125
+anchor_bottom = 0.49166667
+offset_right = -45.0
+offset_bottom = 6.0
+grow_vertical = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/Panel" unique_id=1356201935]
+layout_mode = 1
+offset_right = 300.0
+offset_bottom = 360.0
+
+[node name="カメラ状態" type="Label" parent="CanvasLayer/Panel/VBoxContainer" unique_id=230855752]
+layout_mode = 2
+text = "カメラ状態：初期位置"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/Panel/VBoxContainer" unique_id=1413201406]
+layout_mode = 2
+
+[node name="位置固定" type="Button" parent="CanvasLayer/Panel/VBoxContainer/HBoxContainer" unique_id=2062136140]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "位置固定"
+
+[node name="初期化" type="Button" parent="CanvasLayer/Panel/VBoxContainer/HBoxContainer" unique_id=235379251]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "初期化"
+
+[node name="説明" type="Label" parent="CanvasLayer/Panel/VBoxContainer" unique_id=2107145007]
+layout_mode = 2
+text = "右ドラッグ: 視点回転（見回す）
+右ドラッグ + WASD: 前後左右移動
+右ドラッグ + QE: 上下移動
+中ドラッグ: 視点回転（中心周り回転）
+Shift + 中ドラッグ: 平行移動
+ホイール上下: ズーム（接近・離脱）
++ / -: 時刻変更（±30分）
+Enter: 描画画面へ切替
+Space: UI表示の切り替え"
+
+[node name="---" type="Label" parent="CanvasLayer/Panel/VBoxContainer" unique_id=1855676852]
+layout_mode = 2
+text = "---------------------------------------------------------"
+
+[node name="FPS" type="Label" parent="CanvasLayer/Panel/VBoxContainer" unique_id=672581168]
+layout_mode = 2
+text = "FPS: --"

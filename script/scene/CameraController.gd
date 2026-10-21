@@ -3,53 +3,47 @@ extends Node
 
 const SceneStore := preload("res://script/core/SceneStore.gd")
 
-const HELP := "右ドラッグ: 見回す\n右クリック + WASD: 移動\n右クリック + QE: 上下移動\n中ドラッグ: 回り込む\nShift　+　中ドラッグ: 平行移動\nホイール: 寄る・離れる\n+ / -: 時刻を 30 分進める・戻す\nEnter: 描画画面へ\nSpace: この表示と列の線のオン・オフ"
-
 var cam: Camera3D
 var refit: Callable          # 自動のカメラ位置に戻す処理
+var panel: Control           # シーンの CanvasLayer/Panel（ボタン・操作説明。Space で表示切り替え）
 var focus_distance: float = 12.0
 var fly_speed: float = 8.0
 var _looking := false
 var _orbiting := false
-var _status := Label.new()
-var _hour := Label.new()
-var _layer := CanvasLayer.new()   # ボタン・操作説明（Space で表示切り替え）
+var _fixed := false          # 保存した位置がある
+var _moved := false          # 固定・初期化のあとに動かした
+var _hour := ""
 
-func _init(camera: Camera3D, refit_camera: Callable) -> void:
+func _init(camera: Camera3D, refit_camera: Callable, ui: Control) -> void:
     cam = camera
     refit = refit_camera
+    panel = ui
 
 func _ready() -> void:
-    add_child(_layer)
-    var panel := PanelContainer.new()
-    panel.position = Vector2(8, 8)
-    _layer.add_child(panel)
-    var box := VBoxContainer.new()
-    panel.add_child(box)
-    var row := HBoxContainer.new()
-    box.add_child(row)
-    var fix := Button.new()
-    fix.text = "カメラ位置を固定"
+    var fix := panel.get_node("VBoxContainer/HBoxContainer/位置固定") as Button
+    var reset := panel.get_node("VBoxContainer/HBoxContainer/初期化") as Button
     fix.pressed.connect(_on_fix_pressed)
+    reset.pressed.connect(_on_auto_pressed)
     fix.focus_mode = Control.FOCUS_NONE  # フォーカスが残ると Space で押されてしまう
-    row.add_child(fix)
-    var auto := Button.new()
-    auto.text = "自動に戻す"
-    auto.pressed.connect(_on_auto_pressed)
-    auto.focus_mode = Control.FOCUS_NONE
-    row.add_child(auto)
-    row.add_child(_status)
-    row.add_child(_hour)
-    var help := Label.new()
-    help.text = HELP
-    box.add_child(help)
+    reset.focus_mode = Control.FOCUS_NONE
     update_focus()
 
 func set_status(fixed: bool) -> void:
-    _status.text = "  固定中" if fixed else "  自動"
+    _fixed = fixed
+    _moved = false
+    _show_status()
+
+func _show_status() -> void:
+    var state := "未保存" if _moved else "固定" if _fixed else "初期位置"
+    (panel.get_node("VBoxContainer/カメラ状態") as Label).text = "カメラ状態：" + state
+
+func _moved_by_user() -> void:
+    if not _moved:
+        _moved = true
+        _show_status()
 
 func set_hour(hour: float) -> void:
-    _hour.text = "  時刻 %d:%02d" % [int(hour), int(round(fmod(hour, 1.0) * 60.0))]
+    _hour = "時刻 %d:%02d" % [int(hour), int(round(fmod(hour, 1.0) * 60.0))]
 
 # 画面中央の先にある地面までの距離を注視距離にする（回り込み・ズームの中心）
 func update_focus() -> void:
@@ -69,7 +63,7 @@ func _on_auto_pressed() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
-        _layer.visible = not _layer.visible
+        panel.visible = not panel.visible
         return
     if event is InputEventMouseButton:
         match event.button_index:
@@ -99,6 +93,7 @@ func _turn(rel: Vector2) -> void:
     r.x = clampf(r.x - rel.y * 0.005, -PI / 2 + 0.01, PI / 2 - 0.01)
     r.z = 0.0
     cam.rotation = r
+    _moved_by_user()
 
 func _focus_point() -> Vector3:
     return cam.position - cam.basis.z * focus_distance
@@ -110,14 +105,17 @@ func _orbit(rel: Vector2) -> void:
 
 func _pan(rel: Vector2) -> void:
     cam.position += (-cam.basis.x * rel.x + cam.basis.y * rel.y) * focus_distance * 0.002
+    _moved_by_user()
 
 # 注視点はそのままで距離を factor 倍にする
 func _zoom(factor: float) -> void:
     var f := _focus_point()
     focus_distance = maxf(focus_distance * factor, 1.0)
     cam.position = f + cam.basis.z * focus_distance
+    _moved_by_user()
 
 func _process(delta: float) -> void:
+    (panel.get_node("VBoxContainer/FPS") as Label).text = "FPS: %d　%s" % [Engine.get_frames_per_second(), _hour]
     if not _looking:
         return
     var v := Vector3.ZERO
@@ -134,4 +132,6 @@ func _process(delta: float) -> void:
     if Input.is_physical_key_pressed(KEY_Q):
         v -= Vector3.UP
     var speed := fly_speed * (3.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 1.0)
-    cam.position += v.normalized() * speed * delta
+    if v != Vector3.ZERO:
+        cam.position += v.normalized() * speed * delta
+        _moved_by_user()
