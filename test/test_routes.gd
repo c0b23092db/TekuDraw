@@ -104,6 +104,17 @@ func step(me, world, rng, delta):
     # 列の端から中心線に沿って列の中を進む道も、通り抜けと数える
     check(mgr.routes.leg_cost(Vector3(-6, 0, 0), Vector3(6, 0, 0)) > 12.0 + 49.0)
     check(is_equal_approx(mgr.routes.leg_cost(Vector3(-6, 0, -3), Vector3(6, 0, -3)), 12.0))
+
+    # すき間を狙う: x = 0.5 の人を抜くと、まっすぐ横切る所（x = 0）ではなく、すき間の真ん中を抜けて向こう側へ
+    for m in mgr.walkers.duplicate():
+        if m.state == State.ON_LINE and absf(m.node.position.x - 0.5) < 0.01:
+            mgr.walkers.erase(m)
+            m.node.free()
+    w.state = State.SCRIPTED
+    w.speed = 1.4
+    var aim: Vector3 = mgr.crossing.aim(w, goal)
+    check(absf(aim.x - 0.5) < 0.15 and aim.z > 0.0)
+    check(mgr.crossing.aim(w, Vector3(0, 0, -6)) == Vector3(0, 0, -6))  # 列を横切らないならそのまま
     mgr.free()
 
     print("test_routes: ", "FAIL" if failed else "OK")

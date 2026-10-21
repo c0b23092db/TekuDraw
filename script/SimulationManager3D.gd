@@ -467,7 +467,7 @@ func _update_joiner(w: Walker, delta: float) -> void:
 
     # 最後尾は列の速さで遠ざかる。それより速く歩かないと追いつけない。列を横切るときは優先度で待つ
     var k := crossing.crosser_speed(w, delta)
-    steering.steer(w, crossing.wait_goal(w, routes.route(w, slot, delta), k), maxf(w.speed, line.line_speed * CATCH_UP) * k, delta, tail)
+    steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, slot, delta)), k), maxf(w.speed, line.line_speed * CATCH_UP) * k, delta, tail)
 
 # 動きのスクリプトの step() が行き先と速さを決める。列を横切るときの待ち・譲り、二本の経路、よける動き、障害物の迂回は本体が受け持つ
 # 戻り値: {"goal": Vector3, "speed": float}（speed を省くと me.speed）/ {"line": true} 列に並ぶ / {"respawn": true} 消えて出現地から現れ直す
@@ -489,7 +489,7 @@ func _update_scripted(w: Walker, delta: float) -> void:
     goal.y = 0.0
     # 列の人のほうが優先度が高ければ、列の手前で止まって待つ（向かう向きは保つ）
     var k := crossing.crosser_speed(w, delta)
-    steering.steer(w, crossing.wait_goal(w, routes.route(w, goal, delta), k), float(r.get("speed", w.speed)) * k, delta, null)
+    steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, goal, delta)), k), float(r.get("speed", w.speed)) * k, delta, null)
 
 func _draw_3d_line(points_3d: Array[Vector3]) -> void:
     var line_mesh_instance := MeshInstance3D.new()

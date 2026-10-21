@@ -87,11 +87,14 @@ func _turn(w: Walker, ed: Vector3, delta: float) -> Vector3:
     return e.normalized() if e.length_squared() > 0.000001 else ed
 
 # 式8・9: 進む向きにいる人（体の幅の中）との一番狭いすき間
+# 列に並んでいる人は見ない。列とのやりとりは横切りの決まり（Crossing）で決める
+# （列の人は線の上を進むので、押し出しで体が触れたままになる。触れた人が前にいると速さ 0 から動けず、
+#   その人が道を譲って止まっていると、どちらも動けなくなる）
 func _free_distance(w: Walker, ignore: Walker) -> float:
     var pos := w.node.position
     var s := INF
     for o in sim.walkers:
-        if o == w or o == ignore:
+        if o == w or o == ignore or o.state == State.ON_LINE:
             continue
         var off := o.node.position - pos
         off.y = 0.0
