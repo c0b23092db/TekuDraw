@@ -4,7 +4,7 @@
 Godot でのコンパイルは不要です。書き出したアプリでも、exe の隣の `.config/motion/` に置けば使えます。
 
 言語は GDScript（Godot のスクリプト言語）です。書き方は Python に近く、インデントでブロックを作ります。
-見本は [random_walk.gd](random_walk.gd)（ランダムに歩く）です。AI に書かせるときは、このファイルと見本を渡してください。
+見本は [random_walk.gd](random_walk.gd)（ランダムに歩く）と、[stop_and_go.gd](stop_and_go.gd)（歩いては立ち止まる。状態を `me.memory` に持ち、`world.lines()` を使う例）です。AI に書かせるときは、このファイルと見本を渡してください。
 
 ## 最小の形
 
