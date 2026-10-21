@@ -31,38 +31,74 @@ func steer(w: Walker, goal: Vector3, speed: float, delta: float, ignore: Walker)
     var to_goal := Vector3(wp.x, 0.0, wp.y) - pos
     to_goal.y = 0.0
     var dist := to_goal.length()
-    var desired := Vector3.ZERO
-    if dist > 0.001:
-        w.heading = to_goal / dist
-        desired = w.heading * speed
+    if dist <= 0.001:
+        w.velocity = Vector3.ZERO
+        return
+    w.heading = to_goal / dist
+    if w.direction == Vector3.ZERO:
+        w.direction = w.heading
+    w.direction = _turn(w, _avoid_direction(w, ignore), delta)
+    var v := minf(minf(speed, _free_distance(w, ignore) / sim.time_gap), dist / delta)  # ゴールを通り過ぎない
+    w.velocity = w.direction * maxf(v, 0.0)
+    w.node.position += w.velocity * delta
+    w.node.position.y = 0.0
+    sim._face(w, w.direction)
 
-    var avoid := Vector3.ZERO
+# --- Anticipation Velocity Model（Xu, Chraibi, Seyfried 2021, arXiv:2107.00624）---
+# 向き（式1〜7）: 周りの人の t_a 秒後の位置を先読みして横へそれる。速さ（式8〜10）: 進む向きにいる人とのすき間で決める
+# 論文との違い: 半径は人ごと（2r → 2人の半径の和）。見る相手は avoid_radius 以内だけ。列の人は体が触れそうなときだけ見る
+
+# 式1〜6: よけたあとの向き（大きさ 1）
+func _avoid_direction(w: Walker, ignore: Walker) -> Vector3:
+    var e0 := w.heading
+    var side := Vector3(-e0.z, 0.0, e0.x)  # e0 に直交する向き
+    var pos := w.node.position
+    var me_a := pos + w.velocity * sim.anticipation_time
+    var ed := e0
     for o in sim.walkers:
         if o == w or o == ignore:
             continue
+        var off := o.node.position - pos
+        off.y = 0.0
+        var d := off.length()
+        var r2 := w.radius + o.radius
         # 列に並んでいる人は、体が触れそうなときだけよける。列とのやりとりは横切りの決まり（Crossing）で決める
         # （遠くからよけると列が壁になり、横切りを判定する距離まで近づけないまま列に沿って流される。
         #   まったくよけないと、止まった列の人に真正面からぶつかったまま回り込めない）
-        var reach := w.radius + o.radius + LINE_CONTACT if o.state == State.ON_LINE else sim.avoid_radius
-        var off := pos - o.node.position
-        off.y = 0.0
-        var d := off.length()
+        var reach := r2 + LINE_CONTACT if o.state == State.ON_LINE else sim.avoid_radius
         if d >= reach or d < 0.0001:
             continue
+        var e_ij := off / d
+        if w.direction.dot(e_ij) <= 0.0 and e0.dot(e_ij) <= 0.0:  # 式1: 後ろの人は見ない
+            continue
+        var o_a := o.node.position + o.velocity * sim.anticipation_time
+        var s_a := maxf(r2, (o_a - me_a).dot(e_ij))  # 式2: 先読みした2人のすき間
+        var alpha := sim.avoid_strength * (1.0 + (1.0 - e0.dot(o.velocity.normalized())) / 2.0)  # 式4: 向かってくる人ほど強く
+        var r := alpha * exp((r2 - s_a) / sim.avoid_range)  # 式3
+        var lr := (o_a - pos).dot(side)
+        if lr == 0.0:  # 式5: 真正面なら左右はランダム
+            lr = 1.0 if sim.rng.randf() < 0.5 else -1.0
+        ed -= signf(lr) * side * r
+    return ed.normalized() if ed.length_squared() > 0.000001 else w.direction
 
-        var away := off / d
-        var weight := pow(1.0 - d / reach, 2.0) # 近いほど急激に回避力を高める
-        var tangent := Vector3(-away.z, 0.0, away.x)
-        avoid += (away + tangent * 0.8) * weight
+# 式7: 今の向きから、よけたあとの向きへ turn_time かけて向き直る
+func _turn(w: Walker, ed: Vector3, delta: float) -> Vector3:
+    var e := w.direction + (ed - w.direction) * minf(delta / sim.turn_time, 1.0)
+    return e.normalized() if e.length_squared() > 0.000001 else ed
 
-    desired += avoid * speed * sim.avoid_strength
-    if desired.length() > speed:
-        desired = desired.normalized() * speed
-
-    w.velocity = w.velocity.lerp(desired, 1.0 - exp(-10.0 * delta))
-    w.node.position += w.velocity * delta
-    w.node.position.y = 0.0
-    sim._face(w, w.velocity)
+# 式8・9: 進む向きにいる人（体の幅の中）との一番狭いすき間
+func _free_distance(w: Walker, ignore: Walker) -> float:
+    var pos := w.node.position
+    var s := INF
+    for o in sim.walkers:
+        if o == w or o == ignore:
+            continue
+        var off := o.node.position - pos
+        off.y = 0.0
+        var r2 := w.radius + o.radius
+        if w.direction.dot(off) >= 0.0 and absf(w.direction.cross(off).y) <= r2:
+            s = minf(s, off.length() - r2)
+    return s
 
 # --- 物理的重なりを解決する強力な補正（複数回イテレーション） ---
 func resolve_all_overlaps() -> void:

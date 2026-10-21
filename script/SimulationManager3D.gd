@@ -33,6 +33,10 @@ var obstacle_height: float
 var body_radius: float
 var avoid_radius: float
 var avoid_strength: float
+var avoid_range: float
+var anticipation_time: float
+var turn_time: float
+var time_gap: float
 var yield_distance: float
 var camera_pitch_deg: float
 var camera_fov: float
@@ -387,6 +391,7 @@ func _respawn(w: Walker) -> void:
     w.path.clear()
     w.replan = 0.0
     w.heading = Vector3.ZERO
+    w.direction = Vector3.ZERO
     w.waited = 0.0
     w.via = Vector2i(-1, 0)
     w.reroute = 0.0
@@ -433,8 +438,11 @@ func _update_line_member(w: Walker, delta: float, ahead_s: float) -> void:
         return
 
     # 自分の lateral_offset を適用した座標へ。列に入った直後のずれは、歩く速さで詰める（瞬間移動しない）
+    # velocity は実際に動いた分（ほかの人が先読みに使う）
     var p := line.pos(w.s, w.lateral_offset)
+    var before := w.node.position
     w.node.position = w.node.position.move_toward(p, (current_speed + w.speed) * delta)
+    w.velocity = (w.node.position - before) / delta
 
     # 向きは中心線（オフセットなし）の進行方向を向かせる
     _face(w, crossing.line_dir(w))

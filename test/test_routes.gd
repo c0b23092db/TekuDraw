@@ -35,11 +35,12 @@ func _initialize() -> void:
     for w in mgr.walkers:
         check(absf(w.node.position.z - -6.0) < 0.01 and absf(w.node.position.x) <= 6.0 + 0.01)
         start[w] = w.node.position
-    for _i in range(60):
+    # 3 秒見る（1点の目的地へ集まるので、前に人がいる人は時間の間隔をあけて遅れて歩き出す）
+    for _i in range(180):
         mgr._physics_process(1.0 / 60.0)
     for w in mgr.walkers:
         check(w.memory["goal"].is_equal_approx(Vector3(0, 0, 6)))
-        check(w.node.position.distance_to(start[w]) > 0.5)
+        check(w.node.position.distance_to(start[w]) > 1.5)
 
     # 目的地の線が無ければ、目的地は列のそばにならない
     mgr.groups[1].goal_curve.clear_points()
@@ -73,11 +74,10 @@ func step(me, world, rng, delta):
     var j := _add(mgr, 0, State.TO_LINE, Vector3(5.0, 0, 2.0))
     mgr.routes.update_spans()
     mgr._update_joiner(j, 1.0 / 60.0)
-    check(j.velocity.length() > 0.0 and j.velocity.normalized().z < -0.9)  # 始点（x = -8）へ戻らず、まっすぐ線へ
-    mgr.groups[0].join_nearest = false  # 決められた列に並ぶ動き: 始点へ向かう
-    j.velocity = Vector3.ZERO
+    check(j.velocity.length() > 0.0 and j.heading.z < -0.9)  # 始点（x = -8）へ戻らず、まっすぐ線へ
+    mgr.groups[0].join_nearest = false  # 決められた列に並ぶ動き: 始点へ向かう（向き直るのは turn_time かけて）
     mgr._update_joiner(j, 1.0 / 60.0)
-    check(j.velocity.normalized().x < -0.9)
+    check(j.heading.x < -0.9)
     mgr.groups[0].join_nearest = true
     mgr.walkers.erase(j)
     j.node.free()

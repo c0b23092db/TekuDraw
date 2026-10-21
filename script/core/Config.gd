@@ -49,8 +49,12 @@ const FIELDS := [
     {"section": "object", "key": "spawn_interval", "label": "出現の間隔", "default": 0.0, "min": 0.0, "max": 60.0, "step": 0.1, "suffix": "秒", "hint": "開始時に1人ずつこの間隔で現れる。0 なら全員同時"},
 	# ぶつからない動き #
     {"section": "avoidance", "key": "body_radius", "label": "人の大きさ（半径）", "default": 0.2, "min": 0.05, "max": 2.0, "step": 0.01, "suffix": "m"},
-    {"section": "avoidance", "key": "avoid_radius", "label": "よけ始める距離", "default": 0.75, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "m"},
-    {"section": "avoidance", "key": "avoid_strength", "label": "よける強さ", "default": 2.0, "min": 0.0, "max": 10.0, "step": 0.1},
+    {"section": "avoidance", "key": "avoid_radius", "label": "よける相手を探す距離", "default": 2.0, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m", "hint": "これより遠い人は見ない。先読みするので、歩く速さ × 先読みの時間 × 2 より広くする"},
+    {"section": "avoidance", "key": "avoid_strength", "label": "よける強さ", "default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1, "hint": "AVM の k。向かってくる人にはこの 2 倍、同じ向きに歩く人にはこの値で、横へそれる"},
+    {"section": "avoidance", "key": "avoid_range", "label": "よける力の届き方", "default": 0.1, "min": 0.01, "max": 2.0, "step": 0.01, "suffix": "m", "hint": "AVM の D。先読みしたすき間がこの距離だけ広がるごとに、よける力が 1/e に弱まる"},
+    {"section": "avoidance", "key": "anticipation_time", "label": "先読みの時間", "default": 1.0, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "秒", "hint": "AVM の t_a。周りの人がこの時間後にいる位置を見てよける。0 なら今の位置だけを見る"},
+    {"section": "avoidance", "key": "turn_time", "label": "向き直る時間", "default": 0.3, "min": 0.01, "max": 5.0, "step": 0.01, "suffix": "秒", "hint": "AVM の τ。大きいほどゆっくり向きを変える"},
+    {"section": "avoidance", "key": "time_gap", "label": "前の人との時間の間隔", "default": 1.06, "min": 0.05, "max": 5.0, "step": 0.01, "suffix": "秒", "hint": "AVM の T。進む向きにいる人とのすき間を、この時間で歩ける速さまで落とす"},
     {"section": "avoidance", "key": "yield_distance", "label": "列の人が道を譲る距離", "default": 0.5, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "m", "hint": "列の人と横切る人の体のすき間がこれより狭くなると、どちらかが止まる"},
     # カメラ #
     {"section": "camera", "key": "camera_pitch_deg", "label": "見下ろす角度", "default": 60.0, "min": 10.0, "max": 90.0, "step": 1.0, "suffix": "度", "hint": "90 で真上から。カメラを固定していないときに使う"},

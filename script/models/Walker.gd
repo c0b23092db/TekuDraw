@@ -18,6 +18,7 @@ var param := {}                 # 動きのスクリプトの設定値（動物�
 var position: Vector3:          # スクリプト向け（読むだけ）
     get: return node.position
 var heading: Vector3 = Vector3.ZERO # 向かおうとしている向き（止まって待つ間も保つ）
+var direction: Vector3 = Vector3.ZERO # 今進んでいる向き。よけるときは heading からずれ、少しずつ向き直る（止まっている間も保つ）
 var waited: float = 0.0         # 横切ろうとして列のそばにいる時間
 var radius: float = 0.2        # ぶつかる半径（人ごとにばらつく）
 var spawn_delay: float = 0.0    # 開始から現れるまでの残り秒数
