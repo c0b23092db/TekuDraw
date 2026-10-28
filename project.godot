@@ -14,8 +14,10 @@ config/name="卒業研究_物体追跡研究用データセット作成シミュ
 config/description="『Teku Draw』
 物体追跡研究用のデータセットを作成するシミュレータ。
 "
+config/version="0.2.0"
 run/main_scene="uid://bptnfc3e8jy53"
 config/features=PackedStringArray("4.7", "Forward Plus")
+run/flush_stdout_on_print=true
 config/icon="uid://ccpbxek2eq66t"
 
 [autoload]

@@ -30,9 +30,12 @@ const FIELDS := [
     {"section": "simulation", "key": "human_height", "label": "人の身長", "default": 1.7, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
     {"section": "simulation", "key": "floor_texture_path", "label": "床の画像", "default": "", "filters": ["*.png, *.jpg, *.jpeg, *.webp ; 画像"]},
     {"section": "simulation", "key": "camera_fov", "label": "カメラの画角", "default": 70.0, "min": 10.0, "max": 120.0, "step": 1.0, "suffix": "度", "hint": "縦の画角。出力する画像の写り方が変わる（カメラの位置はシミュレーションの中で動かして固定する）"},
+    {"section": "simulation", "key": "json_interval", "label": "JSONを出す間隔", "default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "秒", "hint": "歩行者の番号・位置・向きを、この間隔で1行1つの JSON として標準出力に流す。0 なら出さない"},
     # 動物体の初期値 #
     {"section": "object", "key": "motion", "label": "動きのスクリプト", "default": "", "choices": "motion"},
-    {"section": "object", "key": "join_nearest", "line": true, "label": "空いた列には近い所から入る", "default": true, "hint": "列に誰もいないとき、線の一番近い所から入る。外すと、決められた列に並ぶ動き（線の始点まで行って並ぶ）。"},
+    {"section": "object", "key": "fence", "line": true, "label": "規制線", "default": false, "hint": "イベント会場の並び: 列の線の左右に規制線を引き、列には必ず始点から入る。ほかの人は規制線を回り込み、列を横切らない。外すと店に入る並び: 最後尾の後ろから並び、ほかの人は列を横切る"},
+    {"section": "object", "key": "join_nearest", "line": true, "label": "空いた列には近い所から入る", "default": true, "hint": "規制線が無く列に誰もいないとき、線の一番近い所から入る。外すと、線の始点まで行って並ぶ。"},
+    {"section": "object", "key": "line_margin", "line": true, "label": "列の人の当たり判定の太さ", "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05, "suffix": "m", "hint": "列に並んでいる人の半径にこれを足して、ほかの人がよけ・押し出され・道を譲る"},
     {"section": "object", "key": "pedestrian_count", "label": "人数", "default": 30, "min": 0, "max": 500, "step": 1, "suffix": "人"},
     {"section": "object", "key": "line_speed", "line": true, "label": "列の進む速さ", "default": 1.25, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m/秒"},
     {"section": "object", "key": "walk_speed", "label": "列に並んでいないときの速度", "default": 1.4, "min": 0.05, "max": 10.0, "step": 0.05, "suffix": "m/秒", "hint": "列の最後尾へ向かうときと、ランダムに歩くときの速さ"},

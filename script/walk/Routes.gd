@@ -74,7 +74,8 @@ func update_spans() -> void:
                 lo = minf(lo, o.s)
                 hi = maxf(hi, o.s)
                 n += 1
-        _spans.append([lo, hi] if n >= 2 else [])
+        # 規制線の列は空と見なす（通り抜けられないので、回り込みは障害物の経路探索に任せる）
+        _spans.append([lo, hi] if n >= 2 and not sim.groups[g].fence else [])
 
 func leg_cost(a: Vector3, b: Vector3) -> float:
     var cost := a.distance_to(b)

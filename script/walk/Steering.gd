@@ -61,7 +61,7 @@ func _avoid_direction(w: Walker, ignore: Walker) -> Vector3:
         var off := o.node.position - pos
         off.y = 0.0
         var d := off.length()
-        var r2 := w.radius + o.radius
+        var r2 := sim.hit_radius(w) + sim.hit_radius(o)
         # 列に並んでいる人は、体が触れそうなときだけよける。列とのやりとりは横切りの決まり（Crossing）で決める
         # （遠くからよけると列が壁になり、横切りを判定する距離まで近づけないまま列に沿って流される。
         #   まったくよけないと、止まった列の人に真正面からぶつかったまま回り込めない）
@@ -112,7 +112,7 @@ func resolve_all_overlaps() -> void:
             var w1 = walkers[i]
             for j in range(i + 1, walkers.size()):
                 var w2 = walkers[j]
-                var min_d = w1.radius + w2.radius
+                var min_d = sim.hit_radius(w1) + sim.hit_radius(w2)
                 var off = w1.node.position - w2.node.position
                 off.y = 0.0
                 var d = off.length()

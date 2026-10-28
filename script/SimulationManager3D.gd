@@ -19,6 +19,8 @@ const SIMPLE_MODEL_PATH := "res://objects/sukuea.tscn"  # 「3Dモデルを使�
 const JOIN_RADIUS: float = 1.0      # 最後尾の後ろの位置にこの距離まで近づいたら列に合流
 const CATCH_UP: float = 1.3         # 列に並びに行く人は、少なくとも列の速さのこの倍で歩く
 const LINE_CLEAR: float = 1.5      # ランダムに歩く人の目的地・現れる所は、列の線（左右のぶれ幅の外側）からこれ以上離す
+const FENCE_SIZE: float = 0.2      # 規制線の当たりの矩形の一辺（並べる間隔も同じ）
+const FENCE_COLOR := Color(1.0, 0.8, 0.1)
 
 # 以下は ./.config/general.toml（Config.FIELDS）から読み込む。意味は Config.gd のラベルを参照
 var use_simple_model: bool
@@ -41,6 +43,7 @@ var yield_distance: float
 var camera_fov: float
 var random_seed: int
 var two_routes: bool
+var json_interval: float
 
 # 乱数はすべてこれから取る。同じシード・同じ設定・同じコードなら、毎回同じ動きになる
 var rng := RandomNumberGenerator.new()
@@ -63,6 +66,10 @@ var routes := Routes.new(self)
 var steering := Steering.new(self)
 var _world: Motion.World  # 動きのスクリプトに渡す窓口
 var _step_warned := {}    # 動物体 → step() の戻り値がおかしいと一度だけ警告した
+var elapsed: float = 0.0  # 始めてからの秒数（JSON の t）
+var _next_id: int = 0     # 次に現れる人の番号
+var _json_wait: float = 0.0
+var _last_camera: Variant = null  # 最後に JSON に出したカメラ。動かしたら出し直す
 
 func _ready() -> void:
     # 描画画面から来たときはリプレイファイル（設定・シード・動物体・障害物）で動かす。シーンを直接開いたときは .config から
@@ -166,10 +173,52 @@ func setup_simulation(objects: Array[Dictionary], obstacles: Array[Rect2], motio
 
     if groups.is_empty():
         return false
+    elapsed = 0.0
+    _next_id = 0
+    _json_wait = 0.0
     _spawn_obstacles(obstacles)
     _spawn_pedestrians()
     is_simulating = true
+    if json_interval > 0.0:
+        _last_camera = camera_json()
+        _emit({"type": "meta", "seed": rng.seed, "interval": json_interval, "camera": _last_camera})
     return true
+
+# --- JSON の出力: 1行1つの JSON を標準出力へ。Godot の起動表示なども標準出力に出るので、受け取る側は "{" で始まる行だけを読む ---
+# meta  : 始めに1回。シードと、カメラ（動かしたら "camera" の行を出し直す）
+# frame : json_interval ごと。t は始めてからの秒数。x・z は床（XZ 平面、m）、yaw は +Z から +X へ回る向き（ラジアン、-π〜π）
+func _emit(d: Dictionary) -> void:
+    print(JSON.stringify(d))
+
+func frame_json() -> Dictionary:
+    var list := []
+    for w in walkers:
+        var yaw := wrapf(w.node.rotation.y - deg_to_rad(model_yaw_offset_deg), -PI, PI)  # モデルの向き補正は除く
+        list.append({"id": w.id, "x": snappedf(w.node.position.x, 0.001), "z": snappedf(w.node.position.z, 0.001), "yaw": snappedf(yaw, 0.001)})
+    return {"type": "frame", "t": snappedf(elapsed, 0.001), "walkers": list}
+
+# pos は m、rot は回転（ラジアン、Godot の YXZ の順）、fov は縦の画角（度）、size は画面のピクセル数。カメラが無ければ null
+func camera_json() -> Variant:
+    var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+    if cam == null:
+        return null
+    var p := cam.global_position
+    var r := cam.global_rotation
+    var size := get_viewport().get_visible_rect().size
+    return {"pos": [snappedf(p.x, 0.001), snappedf(p.y, 0.001), snappedf(p.z, 0.001)],
+        "rot": [snappedf(r.x, 0.0001), snappedf(r.y, 0.0001), snappedf(r.z, 0.0001)],
+        "fov": snappedf(cam.fov, 0.01), "size": [int(size.x), int(size.y)]}
+
+func _stream(delta: float) -> void:
+    _json_wait -= delta
+    if _json_wait > 0.0:
+        return
+    _json_wait += json_interval
+    var cam: Variant = camera_json()
+    if cam != _last_camera:
+        _last_camera = cam
+        _emit({"type": "camera", "t": snappedf(elapsed, 0.001), "camera": cam})
+    _emit(frame_json())
 
 func _spawn_obstacles(rects_2d: Array[Rect2]) -> void:
     obstacle_rects.clear()
@@ -194,11 +243,35 @@ func _spawn_obstacles(rects_2d: Array[Rect2]) -> void:
         body.add_child(mesh)
         body.add_child(shape)
         add_child(body)
+    for g in groups:
+        if g.fence and g.join_line:
+            _spawn_fence(g)
     # 一番大きい人が通れる所だけを通れることにする
     var max_jitter := 0.0
     for g in groups:
         max_jitter = maxf(max_jitter, g.size_jitter)
     nav_grid = Geometry.make_grid(obstacle_rects, Vector2(spawn_half_x, spawn_half_z), body_radius * (1.0 + max_jitter))
+
+# 規制線: 列の線の左右（ぶれ幅 + 一番大きい人の半径の外）。見た目は列の線と同じ床の線（Space で消える）
+# 当たりは小さな矩形を重ねて並べた障害物で、迂回・押し出しが効く。列の人は障害物に押し出されないので、中を進める。始点と終点は開いている
+# shortcut: 終点が開いているので、列に沿って歩く人は終点から規制線の中を通り抜けられる。気になれば終点に矩形を並べて塞ぐ
+# shortcut: 矩形の並び（20 m の列で約 200 個）で、segment_clear が矩形の数に比例して重い。遅ければ線分の障害物にする
+# shortcut: 曲がりの半径が規制線の幅より小さい所では、内側の規制線が列に食い込む。急な曲がりの列を使うなら線分で引き直す
+func _spawn_fence(g: Group) -> void:
+    var off := g.lateral_jitter + body_radius * (1.0 + g.size_jitter) + FENCE_SIZE
+    for side in [-1.0, 1.0]:
+        var pts: Array[Vector3] = []
+        # 間隔を矩形の一辺と同じにして重ねる（斜めの線でもすき間ができない）
+        # pos(s) は終点から 0.05 m 以内だと向きが取れない（中心線の上に乗る）ので、そこまで
+        for i in range(int((g.length - 0.05) / FENCE_SIZE) + 1):
+            var p := g.pos(i * FENCE_SIZE, side * off)
+            pts.append(p)
+            obstacle_rects.append(Rect2(p.x - FENCE_SIZE * 0.5, p.z - FENCE_SIZE * 0.5, FENCE_SIZE, FENCE_SIZE))
+        _draw_3d_line(pts, FENCE_COLOR)
+
+# 当たり判定の半径。列に並んでいる人は動物体の line_margin だけ太い
+func hit_radius(w: Walker) -> float:
+    return w.radius + groups[w.group].line_margin if w.state == State.ON_LINE else w.radius
 
 # models に1人分ずつ {scene, scale, lift, lib, speed} を入れる
 # - scale・lift: 身長を human_height にそろえ、足を y = 0 に置く。カプセルは太さもぶつかる半径に合わせる
@@ -386,6 +459,8 @@ func _find_spawn_point(me: Walker) -> Vector3:
 
 # 所属する動物体が「列に並ぶ」なら列へ、そうでなければ動きのスクリプトへ
 func _respawn(w: Walker) -> void:
+    w.id = _next_id
+    _next_id += 1
     w.node.position = _find_spawn_point(w)
     w.last_pos = w.node.position  # 移り先までの移動を歩く速さと見なさない
     w.velocity = Vector3.ZERO
@@ -432,7 +507,9 @@ func _face(w: Walker, dir: Vector3) -> void:
 # （前の人が道を譲って止まったとき、後ろの人が通り抜けて重ならないように）
 func _update_line_member(w: Walker, delta: float, ahead_s: float) -> void:
     var line := groups[w.group]  # 所属する動物体の列
-    var current_speed := 0.0 if crossing.line_must_yield(w) else line.line_speed
+    # 規制線の列では、前の人とのあいだが空いていれば歩く速さで詰める（始点から入った人が、離れた最後尾まで列の速さで進み続けないように）
+    # 規制線の無い列では詰めない（最後尾が速く動くと、並びに行く人が追いかけてウロウロする）
+    var current_speed := 0.0 if crossing.line_must_yield(w) else (maxf(line.line_speed, w.speed) if line.fence and ahead_s < INF else line.line_speed)
 
     w.s = maxf(w.s, minf(w.s + current_speed * delta, ahead_s - w.gap))  # 下がりはしない
     if w.s >= line.length:
@@ -452,15 +529,22 @@ func _update_line_member(w: Walker, delta: float, ahead_s: float) -> void:
 func _update_joiner(w: Walker, delta: float) -> void:
     var line := groups[w.group]  # 所属する動物体の列
     var tail := _get_tail(w.group)
-    # 列が空なら、始点から並ぶ。join_nearest なら一番近い所から入る（店の扉に入るような動き）
-    var slot_s := tail.s - w.gap if tail else (line.curve.get_closest_offset(w.node.position) if line.join_nearest else 0.0)
+    var slot_s := 0.0
+    if line.fence:
+        # イベント会場の並び: 必ず始点から入る（横から割り込まない）。最後尾が始点より手前まで伸びていれば、その後ろ
+        slot_s = minf(0.0, tail.s - w.gap) if tail else 0.0
+    else:
+        # 店に入る並び: 最後尾の後ろ。列が空なら始点、join_nearest なら一番近い所から入る（店の扉に入るような動き）
+        slot_s = tail.s - w.gap if tail else (line.curve.get_closest_offset(w.node.position) if line.join_nearest else 0.0)
 
     # 最後尾の後ろの近くまで来たら列に入る。ずれは列に入ってから歩いて詰める（_update_line_member）
     # （ぴったりの位置まで来ないと入れないと、動いている最後尾に寄りきれない人がたまって団子になる）
     # 最後尾より後ろにいるときだけ（横や前から入ると、詰めるときに最後尾の人を通り抜ける）
     var slot := line.pos(slot_s, w.lateral_offset)
     var behind := tail == null or (w.node.position - tail.node.position).dot(crossing.line_dir(tail)) <= -(w.radius + tail.radius)
-    if behind and w.node.position.distance_to(slot) <= JOIN_RADIUS:
+    # 障害物越し（規制線の外の入口の脇など）には入らない。列の人は押し出されないので、入ると柵をすり抜ける
+    var from := Vector2(w.node.position.x, w.node.position.z)
+    if behind and w.node.position.distance_to(slot) <= JOIN_RADIUS and Geometry.segment_clear(from, Vector2(slot.x, slot.z), obstacle_rects, w.radius * 0.9):
         w.state = State.ON_LINE
         w.s = slot_s
         return
@@ -491,14 +575,14 @@ func _update_scripted(w: Walker, delta: float) -> void:
     var k := crossing.crosser_speed(w, delta)
     steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, goal, delta)), k), float(r.get("speed", w.speed)) * k, delta, null)
 
-func _draw_3d_line(points_3d: Array[Vector3]) -> void:
+func _draw_3d_line(points_3d: Array[Vector3], color := Color(1.0, 0.1, 0.1)) -> void:
     var line_mesh_instance := MeshInstance3D.new()
     var immediate_mesh = ImmediateMesh.new()
     var material = StandardMaterial3D.new()
 
-    material.albedo_color = Color(1.0, 0.1, 0.1)
+    material.albedo_color = color
     material.emission_enabled = true
-    material.emission = Color(1.0, 0.1, 0.1)
+    material.emission = color
     material.emission_energy_multiplier = 3.0
     material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
@@ -539,6 +623,9 @@ func _physics_process(delta: float) -> void:
     # 3. 移動後に全歩行者同士の接触・めり込みを1括補正
     steering.resolve_all_overlaps()
     _animate(delta)
+    elapsed += delta
+    if json_interval > 0.0:
+        _stream(delta)
 
 # 見た目だけ: 1刻みで動いた距離から歩く速さを出し、足の動きを合わせる。止まったら立ち止まりへ
 func _animate(delta: float) -> void:
