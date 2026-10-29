@@ -85,6 +85,31 @@ func step(me, world, rng, delta):
     w.node.position = a.node.position + Vector3(0, 0, 0.3)
     mgr.steering.resolve_all_overlaps()
     check(w.node.position.distance_to(a.node.position) >= w.radius + a.radius + 0.5 - 0.001)
+    mgr.groups[0].line_margin = 0.0
+
+    # 規制線をくぐる動物体: 柵の中へ入って列を横切って着く。優先度の低い列の人は道を譲る
+    for m in mgr.walkers.duplicate():
+        if m != w:
+            mgr.walkers.erase(m)
+            m.node.free()
+    for i in range(10):
+        var m := _add(mgr, 0, State.ON_LINE, Vector3(-4.0 + i * 0.9, 0, 0))
+        m.s = 4.0 + i * 0.9
+        m.line_priority = 0.0
+    mgr.groups[1].cross_fence = true
+    w.node.position = Vector3(0, 0, -3)
+    w.velocity = Vector3.ZERO
+    w.path.clear()
+    var entered := false
+    yielded = false
+    for _i in range(900):
+        mgr._physics_process(1.0 / 60.0)
+        entered = entered or (absf(w.node.position.x) < 7.5 and absf(w.node.position.z) < inner)
+        for m in mgr.walkers:
+            if m.state == State.ON_LINE and mgr.crossing.line_must_yield(m):
+                yielded = true
+    check(entered and yielded)
+    check(w.node.position.distance_to(Vector3(0, 0, 3)) < 0.5)
     mgr.free()
 
     print("test_fence: ", "FAIL" if failed else "OK")

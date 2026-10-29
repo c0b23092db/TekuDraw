@@ -16,14 +16,16 @@ func step(me, world, rng, delta):
 func _initialize() -> void:
     var a := run(1.0)
     var b := run(0.0)
-    var ok: bool = a["min_gap"] > -0.02 and a["arrived"] and a["swerve_gap"] > 1.0 and b["swerve_gap"] < a["swerve_gap"]
-    print("test_avoidance: ", "OK" if ok else "FAIL", "（よけ始めたときのすき間 %.2f m、先読みなし %.2f m、一番近いとき %.2f m）" % [a["swerve_gap"], b["swerve_gap"], a["min_gap"]])
+    var c := run(1.0, "v010")  # 0.1.0 のよけ方でも、重ならずにすれ違って着く
+    var ok: bool = a["min_gap"] > -0.02 and a["arrived"] and a["swerve_gap"] > 1.0 and b["swerve_gap"] < a["swerve_gap"] and c["min_gap"] > -0.02 and c["arrived"]
+    print("test_avoidance: ", "OK" if ok else "FAIL", "（よけ始めたときのすき間 %.2f m、先読みなし %.2f m、一番近いとき %.2f m、0.1.0 %.2f m）" % [a["swerve_gap"], b["swerve_gap"], a["min_gap"], c["min_gap"]])
     quit(0 if ok else 1)
 
 # x = -5 と x = 5 から向かい合って歩く。少しだけ z をずらす（真正面だと左右はランダムで決まる）
-func run(ta: float) -> Dictionary:
+func run(ta: float, model := "avm") -> Dictionary:
     var values := Config.defaults()
     values["anticipation_time"] = ta
+    values["avoid_model"] = model
     var obj := Config.object_defaults(values)
     obj["points"] = []
     obj["motion"] = "go.gd"

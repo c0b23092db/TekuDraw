@@ -20,14 +20,15 @@ func steer(w: Walker, goal: Vector3, speed: float, delta: float, ignore: Walker)
     var from := Vector2(pos.x, pos.z)
     var wp := Vector2(goal.x, goal.z)
     var clearance := w.radius * 0.9  # 押し出し直後の壁ぎわでも見通せるよう少し小さめ
-    if Geometry.segment_clear(from, wp, sim.obstacle_rects, clearance):
+    var rects := sim.rects_for(w)
+    if Geometry.segment_clear(from, wp, rects, clearance):
         w.replan = 0.0
     else:
         w.replan -= delta
         if w.replan <= 0.0:
-            w.path = Geometry.find_path(sim.nav_grid, from, wp, sim.obstacle_rects, clearance)
+            w.path = Geometry.find_path(sim.grid_for(w), from, wp, rects, clearance)
             w.replan = 1.0
-        wp = Geometry.farthest_visible(from, w.path, sim.obstacle_rects, clearance)
+        wp = Geometry.farthest_visible(from, w.path, rects, clearance)
     var to_goal := Vector3(wp.x, 0.0, wp.y) - pos
     to_goal.y = 0.0
     var dist := to_goal.length()
@@ -35,6 +36,9 @@ func steer(w: Walker, goal: Vector3, speed: float, delta: float, ignore: Walker)
         w.velocity = Vector3.ZERO
         return
     w.heading = to_goal / dist
+    if sim.avoid_model == "v010":
+        _steer_v010(w, minf(speed, dist / delta), delta, ignore)
+        return
     if w.direction == Vector3.ZERO:
         w.direction = w.heading
     w.direction = _turn(w, _avoid_direction(w, ignore), delta)
@@ -43,6 +47,33 @@ func steer(w: Walker, goal: Vector3, speed: float, delta: float, ignore: Walker)
     w.node.position += w.velocity * delta
     w.node.position.y = 0.0
     sim._face(w, w.direction)
+
+# --- 0.1.0 のよけ方（比べる用）: 近い人ほど強く押し返し、横へ回り込む力を足す。速さは決めた速さのまま、滑らかに追いつく ---
+# 0.1.0 との違い: 半径は当たり判定の半径（列の人の太さを含む）。ゴールを通り過ぎない
+func _steer_v010(w: Walker, speed: float, delta: float, ignore: Walker) -> void:
+    var pos := w.node.position
+    var desired := w.heading * speed
+    var avoid := Vector3.ZERO
+    for o in sim.walkers:
+        if o == w or o == ignore:
+            continue
+        var reach := sim.hit_radius(w) + sim.hit_radius(o) + LINE_CONTACT if o.state == State.ON_LINE else sim.v010_avoid_radius
+        var off := pos - o.node.position
+        off.y = 0.0
+        var d := off.length()
+        if d >= reach or d < 0.0001:
+            continue
+        var away := off / d
+        var weight := pow(1.0 - d / reach, 2.0)  # 近いほど急激に強く
+        avoid += (away + Vector3(-away.z, 0.0, away.x) * 0.8) * weight
+    desired += avoid * speed * sim.v010_avoid_strength
+    if desired.length() > speed:
+        desired = desired.normalized() * speed
+    w.velocity = w.velocity.lerp(desired, 1.0 - exp(-10.0 * delta))
+    w.direction = w.velocity.normalized() if w.velocity.length_squared() > 0.000001 else w.heading
+    w.node.position += w.velocity * delta
+    w.node.position.y = 0.0
+    sim._face(w, w.velocity)
 
 # --- Anticipation Velocity Model（Xu, Chraibi, Seyfried 2021, arXiv:2107.00624）---
 # 向き（式1〜7）: 周りの人の t_a 秒後の位置を先読みして横へそれる。速さ（式8〜10）: 進む向きにいる人とのすき間で決める
@@ -136,4 +167,4 @@ func resolve_all_overlaps() -> void:
     # 自由歩行者を障害物の外へ
     for w in walkers:
         if w.state != State.ON_LINE:
-            w.node.position = Geometry.push_out_of_rects(w.node.position, w.radius, sim.obstacle_rects)
+            w.node.position = Geometry.push_out_of_rects(w.node.position, w.radius, sim.rects_for(w))

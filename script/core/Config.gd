@@ -34,12 +34,17 @@ const FIELDS := [
     # 動物体の初期値 #
     {"section": "object", "key": "motion", "label": "動きのスクリプト", "default": "", "choices": "motion"},
     {"section": "object", "key": "fence", "line": true, "label": "規制線", "default": false, "hint": "イベント会場の並び: 列の線の左右に規制線を引き、列には必ず始点から入る。ほかの人は規制線を回り込み、列を横切らない。外すと店に入る並び: 最後尾の後ろから並び、ほかの人は列を横切る"},
+    {"section": "object", "key": "cross_fence", "label": "規制線をくぐる", "default": false, "hint": "この動物体の人は規制線（ほかの動物体のものも）を障害物と見なさず、中へ入って列を横切る。横切るときは規制線の無い列と同じく、優先度で譲り合う"},
     {"section": "object", "key": "join_nearest", "line": true, "label": "空いた列には近い所から入る", "default": true, "hint": "規制線が無く列に誰もいないとき、線の一番近い所から入る。外すと、線の始点まで行って並ぶ。"},
     {"section": "object", "key": "line_margin", "line": true, "label": "列の人の当たり判定の太さ", "default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05, "suffix": "m", "hint": "列に並んでいる人の半径にこれを足して、ほかの人がよけ・押し出され・道を譲る"},
     {"section": "object", "key": "pedestrian_count", "label": "人数", "default": 30, "min": 0, "max": 500, "step": 1, "suffix": "人"},
     {"section": "object", "key": "line_speed", "line": true, "label": "列の進む速さ", "default": 1.25, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m/秒"},
     {"section": "object", "key": "walk_speed", "label": "列に並んでいないときの速度", "default": 1.4, "min": 0.05, "max": 10.0, "step": 0.05, "suffix": "m/秒", "hint": "列の最後尾へ向かうときと、ランダムに歩くときの速さ"},
     {"section": "object", "key": "speed_jitter", "label": "歩く速さのばらつき", "default": 0.1, "min": 0.0, "max": 0.9, "step": 0.05, "hint": "列に並んでいないときの速さを、人ごとに ±この割合でばらつかせる。0.1 なら ±10%"},
+    {"section": "object", "key": "end_open_time", "line": true, "label": "終点が開いている時間", "default": 10.0, "min": 0.0, "max": 3600.0, "step": 0.5, "suffix": "秒", "hint": "終点は「開いている時間」と「閉まっている時間」をくり返す（開いた状態から始まる）。閉まっている間、先頭の人は終点で待ち、後ろの人も詰まって止まる"},
+    {"section": "object", "key": "end_close_time", "line": true, "label": "終点が閉まっている時間", "default": 0.0, "min": 0.0, "max": 3600.0, "step": 0.5, "suffix": "秒", "hint": "0 なら終点はずっと開いている"},
+    {"section": "object", "key": "accept_count", "line": true, "label": "受け入れ人数", "default": 0, "min": 0, "max": 1000, "step": 1, "suffix": "人", "hint": "終点が開いている間、「受け入れ時間」あたりこの人数まで通す（受け入れ時間 ÷ 人数 の間隔で1人ずつ）。0 なら制限なし"},
+    {"section": "object", "key": "accept_time", "line": true, "label": "受け入れ時間", "default": 1.0, "min": 0.05, "max": 3600.0, "step": 0.05, "suffix": "秒", "hint": "受け入れ人数 / 受け入れ時間 が終点を通れる速さ"},
     {"section": "object", "key": "spacing_min", "line": true, "label": "前の人との間隔（最小）", "default": 0.6, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
     {"section": "object", "key": "spacing_max", "line": true, "label": "前の人との間隔（最大）", "default": 1.9, "min": 0.1, "max": 5.0, "step": 0.05, "suffix": "m"},
     {"section": "object", "key": "line_priority_min", "line": true, "label": "道を譲る場面の優先度（最小）", "default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05, "hint": "列に並んでいる人の値。横切る人の値より高ければ、横切る人が列の手前で待つ。低ければ列の人が止まって譲る"},
@@ -52,6 +57,7 @@ const FIELDS := [
     {"section": "object", "key": "cross_cost", "line": true, "label": "列の通過コスト", "default": 5.0, "min": 0.0, "max": 100.0, "step": 0.5, "suffix": "m", "hint": "この列の人の間を通り抜けるとき、道のりにこの距離を足して比べる（全体の設定の「二本の経路」が有効なとき）。大きいほど列の端を回り込む"},
     {"section": "object", "key": "spawn_interval", "label": "出現の間隔", "default": 0.0, "min": 0.0, "max": 60.0, "step": 0.1, "suffix": "秒", "hint": "開始時に1人ずつこの間隔で現れる。0 なら全員同時"},
 	# ぶつからない動き #
+    {"section": "avoidance", "key": "avoid_model", "label": "よけ方", "default": "avm", "choices": [["avm", "AVM（Xu ら 2021）"], ["v010", "0.1.0 の動き（押し返す力）"]], "hint": "列に並んでいない人の、ほかの人のよけ方。比べるときはシードを固定して切り替える"},
     {"section": "avoidance", "key": "body_radius", "label": "人の大きさ（半径）", "default": 0.2, "min": 0.05, "max": 2.0, "step": 0.01, "suffix": "m"},
     {"section": "avoidance", "key": "avoid_radius", "label": "避ける相手を探す距離", "default": 2.0, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "m", "hint": "これより遠い人は見ない。先読みするので、歩く速さ × 先読みの時間 × 2 より広くする"},
     {"section": "avoidance", "key": "avoid_strength", "label": "避ける強さ", "default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1, "hint": "AVM の k。向かってくる人にはこの 2 倍、同じ向きに歩く人にはこの値で、横へそれる"},
@@ -59,7 +65,9 @@ const FIELDS := [
     {"section": "avoidance", "key": "anticipation_time", "label": "先読みの時間", "default": 1.0, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "秒", "hint": "AVM の t_a。周りの人がこの時間後にいる位置を見て避ける。0 なら今の位置だけを見る"},
     {"section": "avoidance", "key": "turn_time", "label": "向き直る時間", "default": 0.3, "min": 0.01, "max": 5.0, "step": 0.01, "suffix": "秒", "hint": "AVM の τ。大きいほどゆっくり向きを変える"},
     {"section": "avoidance", "key": "time_gap", "label": "前の人との時間間隔", "default": 1.06, "min": 0.05, "max": 5.0, "step": 0.01, "suffix": "秒", "hint": "AVM の T。進む向きにいる人とのすき間を、この時間で歩ける速さまで落とす"},
-    {"section": "avoidance", "key": "yield_distance", "label": "列の人が道を譲る距離", "default": 0.5, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "m", "hint": "列の人と横切る人の体のすき間がこれより狭くなると、どちらかが止まる"},
+	{"section": "avoidance", "key": "yield_distance", "label": "列の人が道を譲る距離", "default": 0.5, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "m", "hint": "列の人と横切る人の体のすき間がこれより狭くなると、どちらかが止まる"},
+    {"section": "avoidance", "key": "v010_avoid_radius", "label": "0.1.0: よけ始める距離", "default": 0.75, "min": 0.0, "max": 5.0, "step": 0.05, "suffix": "m", "hint": "よけ方が「0.1.0 の動き」のときだけ使う。中心どうしがこれより近い人から押し返される"},
+    {"section": "avoidance", "key": "v010_avoid_strength", "label": "0.1.0: よける強さ", "default": 2.0, "min": 0.0, "max": 10.0, "step": 0.1, "hint": "よけ方が「0.1.0 の動き」のときだけ使う"},
 ]
 
 static func fields_in(section: String) -> Array:
@@ -119,15 +127,31 @@ static func read_values(cfg: TomlFile) -> Dictionary:
     var values := {}
     for section in SECTION_LABELS:
         values.merge(read_fields(cfg, section))
+    # 動物体の初期値の、動きのスクリプトの設定値（FIELDS に無い項目）もそのまま読む（型と範囲はシミュレーション開始時に Motion.params で直す）
+    for key in cfg.get_section_keys("object"):
+        var v: Variant = cfg.get_value("object", key)
+        if not values.has(key) and typeof(v) in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING]:
+            values[key] = v
     return values
 
 static func write_values(cfg: TomlFile, values: Dictionary) -> void:
     for f in FIELDS:
         cfg.set_value(f["section"], f["key"], values.get(f["key"], f["default"]))
+    for key in values:  # FIELDS に無い項目は、動きのスクリプトの設定値
+        if not _field_keys().has(key):
+            cfg.set_value("object", key, values[key])
 
-# 全体設定のうち「動物体の初期値」だけ
+# 全体設定のうち「動物体の初期値」だけ（動きのスクリプトの設定値も含む）
 static func object_defaults(values: Dictionary) -> Dictionary:
     var d := {}
-    for f in fields_in("object"):
-        d[f["key"]] = values[f["key"]]
+    for key in values:
+        if not _field_keys().has(key) or _field_keys()[key] == "object":
+            d[key] = values[key]
+    return d
+
+# key → section
+static func _field_keys() -> Dictionary:
+    var d := {}
+    for f in FIELDS:
+        d[f["key"]] = f["section"]
     return d

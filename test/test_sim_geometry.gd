@@ -46,6 +46,14 @@ func _initialize() -> void:
     check(Cfg.sanitize(f, 3) is float and Cfg.sanitize(f, 3) == 3.0)
     check(Cfg.sanitize(f, 99.0) == 10.0)
     check(Cfg.sanitize(f, "abc") == 5.0)
+    # 動きのスクリプトの設定値（FIELDS に無い項目）は [object] に書かれ、読み戻せて、動物体の初期値に入る。全体の項目は入らない
+    var vc: RefCounted = load("res://script/core/TomlFile.gd").new()
+    var vals: Dictionary = Cfg.defaults()
+    vals["stop_time"] = 2.5
+    Cfg.write_values(vc, vals)
+    check(vc.get_value("object", "stop_time") == 2.5)
+    var od: Dictionary = Cfg.object_defaults(Cfg.read_values(vc))
+    check(od["stop_time"] == 2.5 and od.has("motion") and not od.has("random_seed"))
 
     # 保存ファイルの線の座標: 形が違う要素は捨てる
     var Store: GDScript = load("res://script/core/SceneStore.gd")

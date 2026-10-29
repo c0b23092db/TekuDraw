@@ -92,7 +92,7 @@ func _add_row(grid: GridContainer, f: Dictionary, v: Variant) -> void:
     var input: Control
     if f.has("choices"):
         var ob := OptionButton.new()
-        var items: Array = Motion.choices() if f["choices"] == "motion" else f["choices"]
+        var items: Array = f["choices"] if f["choices"] is Array else Motion.choices()
         for item in items:
             ob.add_item(item[1])
             ob.set_item_metadata(ob.item_count - 1, item[0])

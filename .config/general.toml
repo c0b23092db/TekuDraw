@@ -37,6 +37,10 @@ join_nearest = true
 motion = ""
 fence = false
 line_margin = 0.0
+end_open_time = 10.0
+end_close_time = 0.0
+accept_count = 0
+accept_time = 1.0
 
 [avoidance]
 
@@ -48,6 +52,9 @@ avoid_range = 0.1
 anticipation_time = 1.0
 turn_time = 0.3
 time_gap = 1.06
+avoid_model = "avm"
+v010_avoid_radius = 0.75
+v010_avoid_strength = 2.0
 
 [scene]
 

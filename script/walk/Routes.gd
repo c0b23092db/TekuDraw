@@ -75,6 +75,7 @@ func update_spans() -> void:
                 hi = maxf(hi, o.s)
                 n += 1
         # 規制線の列は空と見なす（通り抜けられないので、回り込みは障害物の経路探索に任せる）
+        # shortcut: 規制線をくぐる人も、規制線の列の通過コストを見ずにまっすぐ進む。くぐる人が回り込む道も比べたくなれば、区間を人ごとに分ける
         _spans.append([lo, hi] if n >= 2 and not sim.groups[g].fence else [])
 
 func leg_cost(a: Vector3, b: Vector3) -> float:

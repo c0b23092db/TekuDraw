@@ -20,9 +20,15 @@ var motion: String = ""
 var pedestrian_count: int = 30
 var join_nearest: bool = true
 var fence: bool = false
+var cross_fence: bool = false
 var line_margin: float = 0.0
 var line_speed: float = 1.25
 var walk_speed: float = 1.4
+var end_open_time: float = 10.0
+var end_close_time: float = 0.0
+var accept_count: int = 0
+var accept_time: float = 1.0
+var next_exit: float = 0.0        # 次に終点を通れる時刻（シミュレーションの経過秒）
 var spacing_min: float = 0.6
 var spacing_max: float = 1.9
 var line_priority_min: float = 0.0
@@ -46,10 +52,17 @@ func _init(data: Dictionary) -> void:
         spawn_curve.add_point(Geometry.to_world(p))
     for p in data.get("goal_points", []):
         goal_curve.add_point(Geometry.to_world(p))
+    var pts: Array[Vector3] = []
     for p in data.get("points", []):
-        var p3 := Geometry.to_world(p)
-        curve.add_point(p3)
-        points.append(p3)
+        pts.append(Geometry.to_world(p))
+    _set_line(pts)
+
+# 列の線を pts にする（始点・終点の向きと長さも作り直す）
+func _set_line(pts: Array[Vector3]) -> void:
+    curve.clear_points()
+    points = pts
+    for p in pts:
+        curve.add_point(p)
     join_line = points.size() >= 2
     if not join_line:
         return
@@ -59,6 +72,36 @@ func _init(data: Dictionary) -> void:
     first_dir = d.normalized() if d.length_squared() > 0.000001 else Vector3.FORWARD
     d = points[-1] - points[-2]
     last_dir = d.normalized() if d.length_squared() > 0.000001 else first_dir
+
+# 列の線のうち障害物（rects）にかかる所を、障害物を回り込む線に引き直す。列の幅（左右のぶれ + 一番大きい人の半径）だけ離す
+# 障害物の手前の点から、障害物を抜けた先の最初の点までを、経路探索の道でつなぐ。half は経路探索の範囲（出現範囲）
+# shortcut: 回り込む道は格子の経路なので角が尖る。規制線を引くと内側の規制線が角で列に食い込む（_spawn_fence の注意と同じ）
+# shortcut: 始点・終点が障害物の中なら、たどり着ける一番近い所までで止める（線が短くなる）
+func avoid_obstacles(rects: Array[Rect2], half: Vector2, body_radius: float) -> void:
+    if not join_line or rects.is_empty():
+        return
+    var clear := lateral_jitter + body_radius * (1.0 + size_jitter)
+    var inside := func(p: Vector3) -> bool: return rects.any(func(r: Rect2) -> bool: return r.grow(clear).has_point(Vector2(p.x, p.z)))
+    var grid: AStarGrid2D = null  # 引き直す所があるときだけ作る
+    var out: Array[Vector3] = [points[0]]
+    var i := 1
+    while i < points.size():
+        var a := Vector2(out[-1].x, out[-1].z)
+        if Geometry.segment_clear(a, Vector2(points[i].x, points[i].z), rects, clear):
+            out.append(points[i])
+            i += 1
+            continue
+        var j := i
+        while j < points.size() - 1 and inside.call(points[j]):
+            j += 1
+        if grid == null:
+            grid = Geometry.make_grid(rects, half, clear)
+        for p in Geometry.find_path(grid, a, Vector2(points[j].x, points[j].z), rects, clear):
+            out.append(Vector3(p.x, 0.0, p.y))
+        i = j + 1
+    if grid != null:
+        print("注意: %s の列の線が障害物にかかるため、回り込む線に引き直しました" % name)
+        _set_line(out)
 
 # 乱数はシミュレーションのもの（シードで再現できるように）を受け取る
 func random_gap(rng: RandomNumberGenerator) -> float:

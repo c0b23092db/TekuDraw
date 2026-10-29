@@ -33,6 +33,9 @@ var spawn_half_z: float
 var model_yaw_offset_deg: float
 var obstacle_height: float
 var body_radius: float
+var avoid_model: String
+var v010_avoid_radius: float
+var v010_avoid_strength: float
 var avoid_radius: float
 var avoid_strength: float
 var avoid_range: float
@@ -53,8 +56,10 @@ var is_simulating: bool = false
 var walkers: Array[Walker] = []
 var pending: Array[Walker] = []         # 出現の間隔待ちで、まだ現れていない人
 var groups: Array[Group] = []
-var obstacle_rects: Array[Rect2] = []   # 障害物の床面（XZ）
+var obstacle_rects: Array[Rect2] = []   # 障害物の床面（XZ）。規制線を含む
 var nav_grid: AStarGrid2D               # 障害物を迂回する経路探索用
+var wall_rects: Array[Rect2] = []       # 規制線を除いた障害物（規制線をくぐる動物体の人が使う）
+var wall_grid: AStarGrid2D
 var models: Array[Dictionary] = []      # _load_models() を参照
 static var _scenes := {}                # パス → PackedScene（_load_scene の読み込み済み）。アプリを閉じるまで残す
 var _controller: CameraController
@@ -158,8 +163,6 @@ func setup_simulation(objects: Array[Dictionary], obstacles: Array[Rect2], motio
     for data in objects:
         var g := Group.new(data)
         groups.append(g)
-        if g.join_line:
-            _draw_3d_line(g.points)
         if g.motion != "":
             var s := Motion.compile(motions[g.motion] if motions.has(g.motion) else Motion.source(g.motion), g.motion)
             if s == null:
@@ -243,7 +246,11 @@ func _spawn_obstacles(rects_2d: Array[Rect2]) -> void:
         body.add_child(mesh)
         body.add_child(shape)
         add_child(body)
+    wall_rects = obstacle_rects.duplicate()
     for g in groups:
+        g.avoid_obstacles(wall_rects, Vector2(spawn_half_x, spawn_half_z), body_radius)  # 規制線は引き直した線に沿わせる
+        if g.join_line:
+            _draw_3d_line(g.points)
         if g.fence and g.join_line:
             _spawn_fence(g)
     # 一番大きい人が通れる所だけを通れることにする
@@ -251,6 +258,7 @@ func _spawn_obstacles(rects_2d: Array[Rect2]) -> void:
     for g in groups:
         max_jitter = maxf(max_jitter, g.size_jitter)
     nav_grid = Geometry.make_grid(obstacle_rects, Vector2(spawn_half_x, spawn_half_z), body_radius * (1.0 + max_jitter))
+    wall_grid = nav_grid if wall_rects.size() == obstacle_rects.size() else Geometry.make_grid(wall_rects, Vector2(spawn_half_x, spawn_half_z), body_radius * (1.0 + max_jitter))
 
 # 規制線: 列の線の左右（ぶれ幅 + 一番大きい人の半径の外）。見た目は列の線と同じ床の線（Space で消える）
 # 当たりは小さな矩形を重ねて並べた障害物で、迂回・押し出しが効く。列の人は障害物に押し出されないので、中を進める。始点と終点は開いている
@@ -268,6 +276,17 @@ func _spawn_fence(g: Group) -> void:
             pts.append(p)
             obstacle_rects.append(Rect2(p.x - FENCE_SIZE * 0.5, p.z - FENCE_SIZE * 0.5, FENCE_SIZE, FENCE_SIZE))
         _draw_3d_line(pts, FENCE_COLOR)
+
+# w がよける障害物と、その経路探索の格子。規制線をくぐる動物体の人は規制線を見ない
+func rects_for(w: Walker) -> Array[Rect2]:
+    return wall_rects if groups[w.group].cross_fence else obstacle_rects
+
+func grid_for(w: Walker) -> AStarGrid2D:
+    return wall_grid if groups[w.group].cross_fence else nav_grid
+
+# 列 line の規制線が w を通さないか（規制線をくぐる人には、規制線の無い列と同じ横切りの決まりを使う）
+func fence_blocks(line: Group, w: Walker) -> bool:
+    return line.fence and not groups[w.group].cross_fence
 
 # 当たり判定の半径。列に並んでいる人は動物体の line_margin だけ太い
 func hit_radius(w: Walker) -> float:
@@ -513,8 +532,12 @@ func _update_line_member(w: Walker, delta: float, ahead_s: float) -> void:
 
     w.s = maxf(w.s, minf(w.s + current_speed * delta, ahead_s - w.gap))  # 下がりはしない
     if w.s >= line.length:
-        _respawn(w)
-        return
+        if end_open(line):
+            if line.accept_count > 0:
+                line.next_exit = elapsed + line.accept_time / line.accept_count
+            _respawn(w)
+            return
+        w.s = line.length  # 終点で待つ。後ろの人は ahead_s で詰まって止まる
 
     # 自分の lateral_offset を適用した座標へ。列に入った直後のずれは、歩く速さで詰める（瞬間移動しない）
     # velocity は実際に動いた分（ほかの人が先読みに使う）
@@ -525,6 +548,12 @@ func _update_line_member(w: Walker, delta: float, ahead_s: float) -> void:
 
     # 向きは中心線（オフセットなし）の進行方向を向かせる
     _face(w, crossing.line_dir(w))
+
+# 終点を今通れるか: 開いている時間と閉まっている時間のくり返し（開いた状態から始まる）と、受け入れ人数 / 受け入れ時間 の間隔
+func end_open(g: Group) -> bool:
+    if g.end_close_time > 0.0 and fmod(elapsed, g.end_open_time + g.end_close_time) >= g.end_open_time:
+        return false
+    return elapsed >= g.next_exit
 
 func _update_joiner(w: Walker, delta: float) -> void:
     var line := groups[w.group]  # 所属する動物体の列
@@ -544,7 +573,7 @@ func _update_joiner(w: Walker, delta: float) -> void:
     var behind := tail == null or (w.node.position - tail.node.position).dot(crossing.line_dir(tail)) <= -(w.radius + tail.radius)
     # 障害物越し（規制線の外の入口の脇など）には入らない。列の人は押し出されないので、入ると柵をすり抜ける
     var from := Vector2(w.node.position.x, w.node.position.z)
-    if behind and w.node.position.distance_to(slot) <= JOIN_RADIUS and Geometry.segment_clear(from, Vector2(slot.x, slot.z), obstacle_rects, w.radius * 0.9):
+    if behind and w.node.position.distance_to(slot) <= JOIN_RADIUS and Geometry.segment_clear(from, Vector2(slot.x, slot.z), rects_for(w), w.radius * 0.9):
         w.state = State.ON_LINE
         w.s = slot_s
         return

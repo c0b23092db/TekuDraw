@@ -59,10 +59,9 @@ func cross_value(o: Walker) -> float:
 # ponytail: 通り道にいる人のためにも止まると、横切る人が何人も集まった所で列が止まり、すき間が詰まって誰も抜けられなくなる。
 #           通り道の中の人は止まらずに渡りきるので（crosser_speed）、ぶつかっても押されるのは一瞬
 func line_must_yield(w: Walker) -> bool:
-    if sim.groups[w.group].fence:  # 規制線の列は誰も横切らない（柵のそばを回り込む人のために止まらない）
-        return false
     for o in sim.walkers:
-        if cross_value(o) > w.line_priority and is_crossing(w, o, sim.yield_distance):
+        # 規制線の列は、規制線をくぐる人のためにだけ止まる（柵のそばを回り込む人のためには止まらない）
+        if cross_value(o) > w.line_priority and not sim.fence_blocks(sim.groups[w.group], o) and is_crossing(w, o, sim.yield_distance):
             return true
     return false
 
@@ -76,7 +75,7 @@ func crosser_speed(o: Walker, delta: float) -> float:
     var near := false
     var k := 1.0
     for w in sim.walkers:
-        if w.state != State.ON_LINE or sim.groups[w.group].fence:
+        if w.state != State.ON_LINE or sim.fence_blocks(sim.groups[w.group], o):
             continue
         var g := gap(w, o)
         if g >= reach:
@@ -102,7 +101,7 @@ func aim(w: Walker, goal: Vector3) -> Vector3:
     var cross: Array = []  # [列の添字, 交わる点の s]
     for g in range(sim.groups.size()):
         var line := sim.groups[g]
-        if not line.join_line or line.fence or (g == w.group and w.state == State.TO_LINE):  # 並びに行く列は横切らない（行き先が列の上）。規制線の列は経路探索で回り込む
+        if not line.join_line or sim.fence_blocks(line, w) or (g == w.group and w.state == State.TO_LINE):  # 並びに行く列は横切らない（行き先が列の上）。規制線の列は経路探索で回り込む
             continue
         var hit: Variant = _crossing_point(line, pos, goal)
         if hit != null and pos.distance_to(line.pos(hit)) < best_t:

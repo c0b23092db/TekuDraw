@@ -126,14 +126,18 @@ func _edit_object(index: int) -> void:
             obj.merge(values, true)
             _save(),
         {"object": "動物体"},
-        func(values: Dictionary) -> Array:
-            var m: String = values.get("motion", "")
-            return common + (Motion.fields(Motion.compile(Motion.source(m), m)) if m != "" else []))
+        func(values: Dictionary) -> Array: return common + _motion_fields(values))
 
-# 全体設定（./.config/general.toml）
+# 選んでいる動きのスクリプトの項目（組み込みの列なら無し）
+func _motion_fields(values: Dictionary) -> Array:
+    var m: String = values.get("motion", "")
+    return Motion.fields(Motion.compile(Motion.source(m), m)) if m != "" else []
+
+# 全体設定（./.config/general.toml）。動物体の初期値のページの下に、選んでいる動きのスクリプトの項目が出る
 func _on_setting_pressed() -> void:
-    dialog.open("全体の設定", Config.FIELDS, Config.load_values(),
-        func(values: Dictionary) -> void: Config.save_values(values), Config.SECTION_LABELS)
+    dialog.open("全体の設定", [], Config.load_values(),
+        func(values: Dictionary) -> void: Config.save_values(values), Config.SECTION_LABELS,
+        func(values: Dictionary) -> Array: return Config.FIELDS + _motion_fields(values))
 
 func _on_simulate_button_pressed() -> void:
     var ok := false
