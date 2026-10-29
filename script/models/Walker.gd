@@ -4,6 +4,7 @@ extends RefCounted
 enum State { TO_LINE, ON_LINE, SCRIPTED }  # SCRIPTED: 動きのスクリプトが行き先を決める
 
 var node: Node3D
+var id: int = -1                # JSON に出す番号。現れ直すたびに新しい番号（別の人として数える）
 var state: State = State.TO_LINE
 var speed: float = 1.4
 var velocity: Vector3 = Vector3.ZERO

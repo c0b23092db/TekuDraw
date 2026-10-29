@@ -70,17 +70,43 @@ func step(me, world, rng, delta):
         mgr.walkers.erase(w)
         w.node.free()
 
-    # 列が空なら、並びに行く人は線の始点ではなく一番近い所を目指す
+    # 店に入る並び（規制線なし）: 列が空なら、並びに行く人は線の始点ではなく一番近い所を目指す
     var j := _add(mgr, 0, State.TO_LINE, Vector3(5.0, 0, 2.0))
     mgr.routes.update_spans()
     mgr._update_joiner(j, 1.0 / 60.0)
     check(j.velocity.length() > 0.0 and j.heading.z < -0.9)  # 始点（x = -8）へ戻らず、まっすぐ線へ
-    mgr.groups[0].join_nearest = false  # 決められた列に並ぶ動き: 始点へ向かう（向き直るのは turn_time かけて）
+    mgr.groups[0].join_nearest = false  # 始点へ向かう（向き直るのは turn_time かけて）
     mgr._update_joiner(j, 1.0 / 60.0)
     check(j.heading.x < -0.9)
     mgr.groups[0].join_nearest = true
-    mgr.walkers.erase(j)
-    j.node.free()
+    # 最後尾が線の途中にいれば、そのすぐ後ろから入る
+    var t := _add(mgr, 0, State.ON_LINE, Vector3(4.0, 0, 0))
+    t.s = 12.0
+    j.node.position = Vector3(3.0, 0, 0.5)
+    mgr._update_joiner(j, 1.0 / 60.0)
+    check(j.state == State.ON_LINE and is_equal_approx(j.s, 12.0 - j.gap))
+    # イベント会場の並び（規制線あり）: 最後尾が線の途中にいても、横から入らず始点（x = -8）へ
+    mgr.groups[0].fence = true
+    j.state = State.TO_LINE
+    j.node.position = Vector3(3.0, 0, 0.5)
+    mgr._update_joiner(j, 1.0 / 60.0)
+    check(j.state == State.TO_LINE and j.heading.x < -0.9)
+    # 始点から入った人は、前の人とのあいだが空いていれば歩く速さで詰める。先頭は列の速さ
+    j.state = State.ON_LINE
+    j.s = 0.0
+    j.speed = 2.0
+    mgr._update_line_member(j, 1.0 / 60.0, t.s)
+    check(is_equal_approx(j.s, 2.0 / 60.0))
+    j.s = 0.0
+    mgr._update_line_member(j, 1.0 / 60.0, INF)
+    check(is_equal_approx(j.s, mgr.groups[0].line_speed / 60.0))
+    mgr.groups[0].fence = false  # 規制線が無ければ詰めない
+    j.s = 0.0
+    mgr._update_line_member(j, 1.0 / 60.0, t.s)
+    check(is_equal_approx(j.s, mgr.groups[0].line_speed / 60.0))
+    for m in [j, t]:
+        mgr.walkers.erase(m)
+        m.node.free()
 
     # 列に人を並べる（x = -4 〜 4 m）
     for i in range(10):
