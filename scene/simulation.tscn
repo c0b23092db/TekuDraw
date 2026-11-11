@@ -1,6 +1,5 @@
 [gd_scene format=3 uid="uid://xs8mmne17btn"]
 
-[ext_resource type="Script" uid="uid://pd61osg7iuou" path="res://script/DatasetExporter.gd" id="2_nrpyo"]
 [ext_resource type="Script" uid="uid://sbwksub0lhqt" path="res://script/SimulationManager3D.gd" id="3_ke4kd"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8agc3"]
@@ -88,9 +87,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -200, 0, 0)
 cast_shadow = 0
 mesh = SubResource("BoxMesh_gngvs")
 metadata/_edit_lock_ = true
-
-[node name="DatasetExporter" type="Node" parent="." unique_id=373718961]
-script = ExtResource("2_nrpyo")
 
 [node name="SimulationManager3D" type="Node3D" parent="." unique_id=1933215158]
 script = ExtResource("3_ke4kd")

@@ -21,6 +21,7 @@ const CATCH_UP: float = 1.3         # 列に並びに行く人は、少なくと
 const LINE_CLEAR: float = 1.5      # ランダムに歩く人の目的地・現れる所は、列の線（左右のぶれ幅の外側）からこれ以上離す
 const FENCE_SIZE: float = 0.2      # 規制線の当たりの矩形の一辺（並べる間隔も同じ）
 const FENCE_COLOR := Color(1.0, 0.8, 0.1)
+const DATASET_DIR := "./.config/dataset"
 
 # 以下は ./.config/general.toml（Config.FIELDS）から読み込む。意味は Config.gd のラベルを参照
 var use_simple_model: bool
@@ -47,6 +48,7 @@ var camera_fov: float
 var random_seed: int
 var two_routes: bool
 var json_interval: float
+var dataset_export: bool
 
 # 乱数はすべてこれから取る。同じシード・同じ設定・同じコードなら、毎回同じ動きになる
 var rng := RandomNumberGenerator.new()
@@ -75,6 +77,12 @@ var elapsed: float = 0.0  # 始めてからの秒数（JSON の t）
 var _next_id: int = 0     # 次に現れる人の番号
 var _json_wait: float = 0.0
 var _last_camera: Variant = null  # 最後に JSON に出したカメラ。動かしたら出し直す
+var frame_no: int = 0     # 出した frame の通し番号（1 始まり。JSON の f、画像のファイル名、gt.txt の1列目）
+# データセットの書き出し（dataset_export）。_dataset_dir が空なら書き出さない
+var _dataset_dir := ""
+var _gt: FileAccess       # gt/gt.txt
+var _jsonl: FileAccess    # frames.jsonl（標準出力と同じ JSON）
+var _shot := false        # 画像を撮るのを待っている。撮るまで動きを止め、画像と正解を同じ瞬間にそろえる
 
 func _ready() -> void:
     # 描画画面から来たときはリプレイファイル（設定・シード・動物体・障害物）で動かす。シーンを直接開いたときは .config から
@@ -83,6 +91,10 @@ func _ready() -> void:
     for key in config:
         if key in self:
             set(key, config[key])
+    if replay:  # 出力の設定は動きを変えないので、今の設定を使う（同じ動きを別のカメラ位置から書き出せる）
+        var now := Config.load_values()
+        json_interval = now["json_interval"]
+        dataset_export = now["dataset_export"]
     _apply_floor()
     _env = Environment.new()
     _env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -182,35 +194,136 @@ func setup_simulation(objects: Array[Dictionary], obstacles: Array[Rect2], motio
     _spawn_obstacles(obstacles)
     _spawn_pedestrians()
     is_simulating = true
+    frame_no = 0
     if json_interval > 0.0:
+        if dataset_export and _camera():
+            _open_dataset()
         _last_camera = camera_json()
         _emit({"type": "meta", "seed": rng.seed, "interval": json_interval, "camera": _last_camera,
             "groups": groups.map(func(g: Group) -> String: return g.name)})
     return true
 
+# --- データセットの書き出し: MOTChallenge と同じ並び（img1/000001.png、gt/gt.txt、seqinfo.ini）に frames.jsonl を足す ---
+# gt.txt の1行: フレーム, 人の番号（JSON の id + 1。MOT は 1 始まり）, 左, 上, 幅, 高さ, 1, 1, 見えている割合
+func _open_dataset() -> void:
+    _dataset_dir = DATASET_DIR.path_join("%s_seed%d" % [Time.get_datetime_string_from_system().replace(":", "").replace("T", "_"), rng.seed])
+    DirAccess.make_dir_recursive_absolute(_dataset_dir.path_join("img1"))
+    DirAccess.make_dir_recursive_absolute(_dataset_dir.path_join("gt"))
+    _gt = FileAccess.open(_dataset_dir.path_join("gt/gt.txt"), FileAccess.WRITE)
+    _jsonl = FileAccess.open(_dataset_dir.path_join("frames.jsonl"), FileAccess.WRITE)
+    if _gt == null or _jsonl == null:
+        push_warning("データセットを書き出せません: " + _dataset_dir)
+        _gt = null
+        _jsonl = null
+        _dataset_dir = ""
+        return
+    print("データセット: ", _dataset_dir)
+    # データセットに映ってはいけないものを消す（Space で戻せる）
+    for n in _debug_lines:
+        n.visible = false
+    if _controller:
+        _controller.panel.visible = false
+    RenderingServer.frame_post_draw.connect(_save_shot)
+
+# 描き終わった画面を保存し、同じ瞬間の正解を書く。動きはこの間止まっている（_physics_process）
+func _save_shot() -> void:
+    if not _shot:
+        return
+    _shot = false
+    var frame := _emit_frame()
+    for o: Dictionary in frame["walkers"]:
+        if o.has("bbox"):
+            var b: Array = o["bbox"]
+            _gt.store_line("%d,%d,%.1f,%.1f,%.1f,%.1f,1,1,%.2f" % [frame_no, o["id"] + 1, b[0], b[1], b[2], b[3], o["vis"]])
+    _gt.flush()
+    var img := get_viewport().get_texture().get_image()
+    if img == null or img.save_png(_dataset_dir.path_join("img1/%06d.png" % frame_no)) != OK:
+        push_warning("画像を保存できません（フレーム %d）" % frame_no)
+        return
+    # 途中で閉じても読めるよう、枚数を毎回書き直す
+    var info := FileAccess.open(_dataset_dir.path_join("seqinfo.ini"), FileAccess.WRITE)
+    if info:
+        info.store_string("[Sequence]\nname=%s\nimDir=img1\nframeRate=%d\nseqLength=%d\nimWidth=%d\nimHeight=%d\nimExt=.png\n" % [
+            _dataset_dir.get_file(), roundi(1.0 / json_interval), frame_no, img.get_width(), img.get_height()])
+
+func _camera() -> Camera3D:
+    return get_viewport().get_camera_3d() if is_inside_tree() else null
+
+# 人を囲む箱（当たり判定の円柱 = 半径 × 身長）
+func body_box(w: Walker) -> AABB:
+    return AABB(w.node.position - Vector3(w.radius, 0.0, w.radius), Vector3(w.radius * 2.0, human_height * w.node.scale.y, w.radius * 2.0))
+
+# 人を隠すもの: 障害物（規制線は床の線なので除く）と、全員の箱
+func occluders() -> Array[AABB]:
+    var boxes: Array[AABB] = []
+    for r in wall_rects:
+        boxes.append(AABB(Vector3(r.position.x, 0.0, r.position.y), Vector3(r.size.x, obstacle_height, r.size.y)))
+    for w in walkers:
+        boxes.append(body_box(w))
+    return boxes
+
+# 画像の上の人の枠 bbox [左, 上, 幅, 高さ]（px。画面の外へはみ出した分も含む）と、見えている割合 vis（0〜1）
+# カメラの後ろ・画面の外なら {}（画像に写っていない）
+# shortcut: 枠は body_box を囲むので、振った手足は少しはみ出す。ぴったりの枠が要るなら人ごとのマスクを描いて測る
+# shortcut: vis は「画面の中にある割合 × 体の軸の 5 点のうち隠れていない割合」で 0.2 刻み。細かく要るならマスクの画素を数える
+# shortcut: 隠れは全員の箱を調べる（1フレームで人数の2乗 × 5）。数百人で重ければ、カメラに近い順に並べて手前の人だけ見る
+func screen_truth(w: Walker, cam: Camera3D, boxes: Array[AABB], image_size := Vector2(cam.get_viewport().get_texture().get_size())) -> Dictionary:
+    var box := body_box(w)
+    var rect := Rect2()
+    for i in range(8):
+        var p := box.get_endpoint(i)
+        if cam.is_position_behind(p):
+            return {}
+        var q := cam.unproject_position(p)
+        rect = Rect2(q, Vector2.ZERO) if i == 0 else rect.expand(q)
+    # unproject_position は見かけの画面（伸縮前）の座標を返す。画像の px に直す
+    var k := image_size / cam.get_viewport().get_visible_rect().size
+    rect = Rect2(rect.position * k, rect.size * k)
+    var inside := rect.intersection(Rect2(Vector2.ZERO, image_size))
+    if inside.get_area() <= 0.0:
+        return {}
+    var seen := 0
+    for i in range(5):
+        var p := w.node.position + Vector3.UP * box.size.y * (0.1 + 0.2 * i)
+        if not boxes.any(func(b: AABB) -> bool: return b != box and b.intersects_segment(cam.global_position, p) != null):
+            seen += 1
+    return {"bbox": [snappedf(rect.position.x, 0.1), snappedf(rect.position.y, 0.1), snappedf(rect.size.x, 0.1), snappedf(rect.size.y, 0.1)],
+        "vis": snappedf(inside.get_area() / rect.get_area() * seen / 5.0, 0.01)}
+
 # --- JSON の出力: 1行1つの JSON を標準出力へ。Godot の起動表示なども標準出力に出るので、受け取る側は "{" で始まる行だけを読む ---
 # meta  : 始めに1回。シードと、カメラ（動かしたら "camera" の行を出し直す）
-# frame : json_interval ごと。t は始めてからの秒数。x・z は床（XZ 平面、m）、yaw は +Z から +X へ回る向き（ラジアン、-π〜π）
+# frame : json_interval ごと。f は通し番号、t は始めてからの秒数。x・z は床（XZ 平面、m）、yaw は +Z から +X へ回る向き（ラジアン、-π〜π）
+#         カメラがあれば、画像に写っている人に bbox と vis（screen_truth）が付く
 func _emit(d: Dictionary) -> void:
-    print(JSON.stringify(d))
+    var s := JSON.stringify(d)
+    print(s)
+    if _jsonl:
+        _jsonl.store_line(s)
+        _jsonl.flush()
 
-func frame_json() -> Dictionary:
+func frame_json(cam: Camera3D = _camera()) -> Dictionary:
     var list := []
+    var boxes: Array[AABB] = []
+    if cam:
+        boxes = occluders()
     for w in walkers:
         var yaw := wrapf(w.node.rotation.y - deg_to_rad(model_yaw_offset_deg), -PI, PI)  # モデルの向き補正は除く
         # group は動物体の番号（meta の groups の添字）。on_line はその動物体の列に並んでいる間だけ true（並びに行く途中は false）
-        list.append({"id": w.id, "x": snappedf(w.node.position.x, 0.001), "z": snappedf(w.node.position.z, 0.001), "yaw": snappedf(yaw, 0.001),
-            "group": w.group, "on_line": w.state == State.ON_LINE})
-    return {"type": "frame", "t": snappedf(elapsed, 0.001), "walkers": list}
+        var o := {"id": w.id, "x": snappedf(w.node.position.x, 0.001), "z": snappedf(w.node.position.z, 0.001), "yaw": snappedf(yaw, 0.001),
+            "group": w.group, "on_line": w.state == State.ON_LINE}
+        if cam:
+            o.merge(screen_truth(w, cam, boxes))
+        list.append(o)
+    return {"type": "frame", "f": frame_no, "t": snappedf(elapsed, 0.001), "walkers": list}
 
-# pos は m、rot は回転（ラジアン、Godot の YXZ の順）、fov は縦の画角（度）、size は画面のピクセル数。カメラが無ければ null
+# pos は m、rot は回転（ラジアン、Godot の YXZ の順）、fov は縦の画角（度）、size は画像のピクセル数。カメラが無ければ null
 func camera_json() -> Variant:
-    var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+    var cam := _camera()
     if cam == null:
         return null
     var p := cam.global_position
     var r := cam.global_rotation
-    var size := get_viewport().get_visible_rect().size
+    var size := get_viewport().get_texture().get_size()
     return {"pos": [snappedf(p.x, 0.001), snappedf(p.y, 0.001), snappedf(p.z, 0.001)],
         "rot": [snappedf(r.x, 0.0001), snappedf(r.y, 0.0001), snappedf(r.z, 0.0001)],
         "fov": snappedf(cam.fov, 0.01), "size": [int(size.x), int(size.y)]}
@@ -220,11 +333,20 @@ func _stream(delta: float) -> void:
     if _json_wait > 0.0:
         return
     _json_wait += json_interval
+    if _gt:
+        _shot = true  # 画面を描き終わってから、画像と一緒に出す（_save_shot）
+    else:
+        _emit_frame()
+
+func _emit_frame() -> Dictionary:
     var cam: Variant = camera_json()
     if cam != _last_camera:
         _last_camera = cam
         _emit({"type": "camera", "t": snappedf(elapsed, 0.001), "camera": cam})
-    _emit(frame_json())
+    frame_no += 1
+    var frame := frame_json()
+    _emit(frame)
+    return frame
 
 func _spawn_obstacles(rects_2d: Array[Rect2]) -> void:
     obstacle_rects.clear()
@@ -641,7 +763,7 @@ func _draw_3d_line(points_3d: Array[Vector3], color := Color(1.0, 0.1, 0.1)) -> 
 
 # 物理の刻み（既定 1/60 秒）で進める。描画のフレームレートに左右されないので、シードで再現できる
 func _physics_process(delta: float) -> void:
-    if not is_simulating:
+    if not is_simulating or _shot:  # 画像を撮るまで待つ（刻みの数は変わらないので、動きは同じ）
         return
     _spawn_pending(delta)
 

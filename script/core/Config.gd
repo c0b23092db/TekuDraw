@@ -31,6 +31,7 @@ const FIELDS := [
     {"section": "simulation", "key": "floor_texture_path", "label": "床の画像", "default": "", "filters": ["*.png, *.jpg, *.jpeg, *.webp ; 画像"]},
     {"section": "simulation", "key": "camera_fov", "label": "カメラの画角", "default": 70.0, "min": 10.0, "max": 120.0, "step": 1.0, "suffix": "度", "hint": "縦の画角。出力する画像の写り方が変わる（カメラの位置はシミュレーションの中で動かして固定する）"},
     {"section": "simulation", "key": "json_interval", "label": "JSONを出す間隔", "default": 0.0, "min": 0.0, "max": 10.0, "step": 0.05, "suffix": "秒", "hint": "歩行者の番号・位置・向きを、この間隔で1行1つの JSON として標準出力に流す。0 なら出さない"},
+    {"section": "simulation", "key": "dataset_export", "label": "データセットを書き出す", "default": false, "hint": "「JSONを出す間隔」ごとに、画像と正解（MOTChallenge 形式の gt.txt と JSON）を ./.config/dataset に書き出す。間隔が 0 なら書き出さない。操作説明と列の線は消える（Space で戻すと画像に映る）"},
     # 動物体の初期値 #
     {"section": "object", "key": "motion", "label": "動きのスクリプト", "default": "", "choices": "motion"},
     {"section": "object", "key": "fence", "line": true, "label": "規制線", "default": false, "hint": "イベント会場の並び: 列の線の左右に規制線を引き、列には必ず始点から入る。ほかの人は規制線を回り込み、列を横切らない。外すと店に入る並び: 最後尾の後ろから並び、ほかの人は列を横切る"},

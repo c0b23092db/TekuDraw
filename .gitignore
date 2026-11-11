@@ -5,6 +5,7 @@
 .mcp.json
 .config/model
 .config/replay
+.config/dataset
 .config/picture
 trash/
 README/中間発表

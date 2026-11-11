@@ -53,6 +53,40 @@ func _initialize() -> void:
     var ws: Array = JSON.parse_string(JSON.stringify(mgr.frame_json()))["walkers"]
     check(ws[1]["on_line"] == true and ws[0]["on_line"] == false and int(ws[1]["group"]) == 0)
     check(mgr.camera_json() == null)  # シーンに無いのでカメラも無い
+    check(not ws[1].has("bbox"))       # カメラが無ければ枠も無い
+
+    # 画像の上の枠と見えている割合: 高さ 0.85 m、10 m 手前から -Z 向きに見る
+    var cam := Camera3D.new()
+    root.add_child(cam)
+    await process_frame  # root がシーンに入るのを待つ
+    cam.position = Vector3(0.0, 0.85, 10.0)
+    cam.fov = 70.0
+    for w: Walker in mgr.walkers:
+        w.node.scale = Vector3.ONE
+        w.radius = 0.2
+    mgr.walkers[0].node.position = Vector3.ZERO              # 1 の後ろに隠れる
+    mgr.walkers[1].node.position = Vector3(0.0, 0.0, 5.0)
+    mgr.walkers[2].node.position = Vector3(5.0, 0.0, 0.0)    # 右に 5 m。隠れない
+    # ヘッドレスでは画像が 4×4 px しか無いので、画像の大きさは見かけの画面と同じにして渡す
+    var size: Vector2 = root.get_visible_rect().size
+    var truth := func() -> Array:
+        return mgr.walkers.map(func(w: Walker) -> Dictionary: return mgr.screen_truth(w, cam, mgr.occluders(), size))
+    ws = truth.call()
+    var px := size.y * 0.5 / tan(deg_to_rad(35.0)) / 10.0   # 10 m 先の 1 m が何 px か
+    var b: Array = ws[2]["bbox"]
+    check(absf(b[0] + b[2] * 0.5 - (size.x * 0.5 + 5.0 * px)) < 3.0)       # 枠の中心の横位置
+    check(absf(b[1] + b[3] * 0.5 - size.y * 0.5) < 3.0)                    # 目の高さが体の真ん中
+    check(b[3] > mgr.human_height * px and b[3] < mgr.human_height * px * 1.05)  # 高さは身長ぶん（手前の面のぶん少し大きい）
+    check(ws[2]["vis"] == 1.0 and ws[1]["vis"] == 1.0 and ws[0]["vis"] == 0.0)
+    mgr.walkers[2].node.position = Vector3(0.0, 0.0, 20.0)  # カメラの後ろ
+    check(truth.call()[2].is_empty())
+    check(mgr.frame_json(cam)["f"] == mgr.frame_no)  # カメラを渡しても落ちない
+    # 障害物の陰: 高さ 1 m の箱の後ろでは、体の軸の 5 点（0.17〜1.53 m）のうち下の 3 点が隠れる
+    mgr.walkers[2].node.position = Vector3(5.0, 0.0, 0.0)
+    mgr.obstacle_height = 1.0
+    mgr.wall_rects = [Rect2(4.0, 1.0, 2.0, 0.5)] as Array[Rect2]
+    check(is_equal_approx(truth.call()[2]["vis"], 0.4))
+    cam.free()
     mgr.free()
 
     print("test_stream: ", "FAIL" if failed else "OK")
