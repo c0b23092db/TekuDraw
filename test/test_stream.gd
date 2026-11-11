@@ -47,6 +47,11 @@ func _initialize() -> void:
     mgr._update_line_member(m, 1.0 / 60.0, INF)
     var yaw: float = mgr.frame_json()["walkers"][1]["yaw"]
     check(absf(yaw - PI / 2.0) < 0.01)
+
+    # 列の正解: 並んでいる人だけ on_line。group は動物体の番号
+    mgr.walkers[0].state = State.TO_LINE
+    var ws: Array = JSON.parse_string(JSON.stringify(mgr.frame_json()))["walkers"]
+    check(ws[1]["on_line"] == true and ws[0]["on_line"] == false and int(ws[1]["group"]) == 0)
     check(mgr.camera_json() == null)  # シーンに無いのでカメラも無い
     mgr.free()
 

@@ -184,7 +184,8 @@ func setup_simulation(objects: Array[Dictionary], obstacles: Array[Rect2], motio
     is_simulating = true
     if json_interval > 0.0:
         _last_camera = camera_json()
-        _emit({"type": "meta", "seed": rng.seed, "interval": json_interval, "camera": _last_camera})
+        _emit({"type": "meta", "seed": rng.seed, "interval": json_interval, "camera": _last_camera,
+            "groups": groups.map(func(g: Group) -> String: return g.name)})
     return true
 
 # --- JSON の出力: 1行1つの JSON を標準出力へ。Godot の起動表示なども標準出力に出るので、受け取る側は "{" で始まる行だけを読む ---
@@ -197,7 +198,9 @@ func frame_json() -> Dictionary:
     var list := []
     for w in walkers:
         var yaw := wrapf(w.node.rotation.y - deg_to_rad(model_yaw_offset_deg), -PI, PI)  # モデルの向き補正は除く
-        list.append({"id": w.id, "x": snappedf(w.node.position.x, 0.001), "z": snappedf(w.node.position.z, 0.001), "yaw": snappedf(yaw, 0.001)})
+        # group は動物体の番号（meta の groups の添字）。on_line はその動物体の列に並んでいる間だけ true（並びに行く途中は false）
+        list.append({"id": w.id, "x": snappedf(w.node.position.x, 0.001), "z": snappedf(w.node.position.z, 0.001), "yaw": snappedf(yaw, 0.001),
+            "group": w.group, "on_line": w.state == State.ON_LINE})
     return {"type": "frame", "t": snappedf(elapsed, 0.001), "walkers": list}
 
 # pos は m、rot は回転（ラジアン、Godot の YXZ の順）、fov は縦の画角（度）、size は画面のピクセル数。カメラが無ければ null
