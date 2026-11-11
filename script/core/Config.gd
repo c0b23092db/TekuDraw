@@ -70,6 +70,14 @@ const FIELDS := [
     {"section": "avoidance", "key": "v010_avoid_strength", "label": "0.1.0: よける強さ", "default": 2.0, "min": 0.0, "max": 10.0, "step": 0.1, "hint": "よけ方が「0.1.0 の動き」のときだけ使う"},
 ]
 
+# 設定画面で「詳細」をオンにしたときだけ出す項目。初心者は残りの項目だけで列を作れる（ぶつからない動きは、よけ方・人の大きさ・避ける強さを残す）
+const ADVANCED := ["model_yaw_offset_deg", "two_routes", "human_model_dir", "join_nearest", "line_margin", "speed_jitter",
+    "line_priority_min", "line_priority_max", "cross_priority_min", "cross_priority_max", "max_wait", "size_jitter", "lateral_jitter", "cross_cost",
+    "avoid_radius", "avoid_range", "anticipation_time", "turn_time", "time_gap", "yield_distance", "v010_avoid_radius", "v010_avoid_strength"]
+
+static func is_advanced(f: Dictionary) -> bool:
+    return f["key"] in ADVANCED
+
 static func fields_in(section: String) -> Array:
     return FIELDS.filter(func(f: Dictionary) -> bool: return f["section"] == section)
 

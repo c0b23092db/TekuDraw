@@ -57,7 +57,7 @@ func _steer_v010(w: Walker, speed: float, delta: float, ignore: Walker) -> void:
     for o in sim.walkers:
         if o == w or o == ignore:
             continue
-        var reach := sim.hit_radius(w) + sim.hit_radius(o) + LINE_CONTACT if o.state == State.ON_LINE else sim.v010_avoid_radius
+        var reach := sim.contact(w, o) + LINE_CONTACT if o.state == State.ON_LINE else sim.v010_avoid_radius
         var off := pos - o.node.position
         off.y = 0.0
         var d := off.length()
@@ -92,7 +92,7 @@ func _avoid_direction(w: Walker, ignore: Walker) -> Vector3:
         var off := o.node.position - pos
         off.y = 0.0
         var d := off.length()
-        var r2 := sim.hit_radius(w) + sim.hit_radius(o)
+        var r2 := sim.contact(w, o)
         # 列に並んでいる人は、体が触れそうなときだけよける。列とのやりとりは横切りの決まり（Crossing）で決める
         # （遠くからよけると列が壁になり、横切りを判定する距離まで近づけないまま列に沿って流される。
         #   まったくよけないと、止まった列の人に真正面からぶつかったまま回り込めない）
@@ -143,7 +143,7 @@ func resolve_all_overlaps() -> void:
             var w1 = walkers[i]
             for j in range(i + 1, walkers.size()):
                 var w2 = walkers[j]
-                var min_d = sim.hit_radius(w1) + sim.hit_radius(w2)
+                var min_d = sim.contact(w1, w2)
                 var off = w1.node.position - w2.node.position
                 off.y = 0.0
                 var d = off.length()

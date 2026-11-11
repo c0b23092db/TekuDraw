@@ -27,6 +27,11 @@ var path := PackedVector2Array() # 障害物を迂回する経路（XZ）
 var replan: float = 0.0          # 経路を引き直すまでの残り秒数
 var via := Vector2i(-1, 0)       # 列の端を回り込むとき (列の添字, 0: 最後尾側 / 1: 先頭側)。x = -1 ならまっすぐ
 var reroute: float = 0.0         # 回り込むかを決め直すまでの残り秒数
+var stuck_at: Vector3 = Vector3.ZERO # 動けているかを測る基準の位置（ここから STUCK_MOVE 動いたら置き直す）
+var stuck_time: float = 0.0      # 歩こうとしているのに stuck_at から動けていない秒数
+var detour := PackedVector2Array() # 動けなくなったときに通る寄り道の道（XZ。着いた点から消す）
+var detour_time: float = 0.0     # 寄り道をやめるまでの残り秒数（0 なら寄り道しない）
+var squeeze: float = 0.0         # 列の人の間をすり抜ける残り秒数（寄り道の道が無い・寄り道しても動けないとき）
 # 以下は見た目だけ（動きの計算には使わない）
 var anim: AnimationPlayer        # モデルにアニメーションが無ければ null
 var anim_speed: float = 0.0      # 歩くアニメーションを等速で流したときの歩く速さ（大きさ 1 のとき）

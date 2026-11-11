@@ -88,6 +88,9 @@ func crosser_speed(o: Walker, delta: float) -> float:
         if (crossing or (o.waited > 0.0 and ahead(w, o))) and cross_value(o) <= w.line_priority and not ahead(w, o, true):
             k = minf(k, clampf((g - sim.yield_distance) / CROSS_NEAR, 0.0, 1.0))
     o.waited = o.waited + delta if near else 0.0
+    # 待てる時間を過ぎたら、列の人の太さ（line_margin）を無視してすり抜ける（太い列は切れ目のない壁になり、譲られても通れない）
+    if o.waited >= sim.groups[o.group].max_wait:
+        o.squeeze = maxf(o.squeeze, 1.0)
     return k
 
 # --- すき間を狙う: 列を横切る前に、着くころの列の人の位置を先読みして、すき間の空く所へ向かう ---

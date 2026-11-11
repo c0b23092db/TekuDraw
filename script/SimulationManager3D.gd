@@ -292,6 +292,10 @@ func fence_blocks(line: Group, w: Walker) -> bool:
 func hit_radius(w: Walker) -> float:
     return w.radius + groups[w.group].line_margin if w.state == State.ON_LINE else w.radius
 
+# 2人の当たり判定の中心の距離。人の間をすり抜けている人（squeeze）とは、列の人も line_margin の太さを使わない
+func contact(a: Walker, b: Walker) -> float:
+    return a.radius + b.radius if a.squeeze > 0.0 or b.squeeze > 0.0 else hit_radius(a) + hit_radius(b)
+
 # models に1人分ずつ {scene, scale, lift, lib, speed} を入れる
 # - scale・lift: 身長を human_height にそろえ、足を y = 0 に置く。カプセルは太さもぶつかる半径に合わせる
 # - lib: "walk"・"idle" の入った AnimationLibrary（無ければ null）。speed: walk を等速で流したときの歩く速さ
@@ -491,6 +495,10 @@ func _respawn(w: Walker) -> void:
     w.waited = 0.0
     w.via = Vector2i(-1, 0)
     w.reroute = 0.0
+    w.stuck_at = w.node.position
+    w.stuck_time = 0.0
+    w.detour_time = 0.0
+    w.squeeze = 0.0
 
     var g := groups[w.group]
     w.line_priority = g.random_line_priority(rng)
@@ -570,7 +578,8 @@ func _update_joiner(w: Walker, delta: float) -> void:
     # （ぴったりの位置まで来ないと入れないと、動いている最後尾に寄りきれない人がたまって団子になる）
     # 最後尾より後ろにいるときだけ（横や前から入ると、詰めるときに最後尾の人を通り抜ける）
     var slot := line.pos(slot_s, w.lateral_offset)
-    var behind := tail == null or (w.node.position - tail.node.position).dot(crossing.line_dir(tail)) <= -(w.radius + tail.radius)
+    # 規制線の列で最後尾が始点より先にいるときは見ない（曲がった列では、始点が遠い最後尾の向きの「前」になり、入口で固まる）
+    var behind := tail == null or slot_s < tail.s - w.gap or (w.node.position - tail.node.position).dot(crossing.line_dir(tail)) <= -(w.radius + tail.radius)
     # 障害物越し（規制線の外の入口の脇など）には入らない。列の人は押し出されないので、入ると柵をすり抜ける
     var from := Vector2(w.node.position.x, w.node.position.z)
     if behind and w.node.position.distance_to(slot) <= JOIN_RADIUS and Geometry.segment_clear(from, Vector2(slot.x, slot.z), rects_for(w), w.radius * 0.9):
@@ -581,6 +590,7 @@ func _update_joiner(w: Walker, delta: float) -> void:
     # 最後尾は列の速さで遠ざかる。それより速く歩かないと追いつけない。列を横切るときは優先度で待つ
     var k := crossing.crosser_speed(w, delta)
     steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, slot, delta)), k), maxf(w.speed, line.line_speed * CATCH_UP) * k, delta, tail)
+    routes.watch_stuck(w, slot, true, delta)
 
 # 動きのスクリプトの step() が行き先と速さを決める。列を横切るときの待ち・譲り、二本の経路、よける動き、障害物の迂回は本体が受け持つ
 # 戻り値: {"goal": Vector3, "speed": float}（speed を省くと me.speed）/ {"line": true} 列に並ぶ / {"respawn": true} 消えて出現地から現れ直す
@@ -602,7 +612,9 @@ func _update_scripted(w: Walker, delta: float) -> void:
     goal.y = 0.0
     # 列の人のほうが優先度が高ければ、列の手前で止まって待つ（向かう向きは保つ）
     var k := crossing.crosser_speed(w, delta)
-    steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, goal, delta)), k), float(r.get("speed", w.speed)) * k, delta, null)
+    var speed := float(r.get("speed", w.speed))
+    steering.steer(w, crossing.wait_goal(w, crossing.aim(w, routes.route(w, goal, delta)), k), speed * k, delta, null)
+    routes.watch_stuck(w, goal, speed > 0.0, delta)  # わざと立ち止まっている間（speed 0）は数えない
 
 func _draw_3d_line(points_3d: Array[Vector3], color := Color(1.0, 0.1, 0.1)) -> void:
     var line_mesh_instance := MeshInstance3D.new()

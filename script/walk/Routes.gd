@@ -7,9 +7,15 @@ extends RefCounted
 
 const Sim := preload("res://script/SimulationManager3D.gd")
 const Walker := preload("res://script/models/Walker.gd")
+const Geometry := preload("res://script/utils/Geometry.gd")
 const State := Walker.State
 
 const ROUND_MARGIN: float = 1.0    # m。列の端を回り込むときは、先頭・最後尾の人からこれだけ先の点を通る
+# 動けなくなったときの寄り道（watch_stuck）
+const STUCK_MOVE: float = 0.5      # m。歩こうとしているのに、STUCK_TIME 秒でこれだけも動けなければ動けないと見なす
+const STUCK_TIME: float = 5.0      # 秒。横切るのを待てる時間（max_wait）を過ぎても動けないときだけ寄り道するよう、それより長め
+const DETOUR_TIME: float = 15.0    # 秒。寄り道の道を通るのはこの時間まで（着けなくても元の道へ戻る）
+const SQUEEZE_TIME: float = 5.0    # 秒。列の人の間をすり抜けるのはこの時間（列の太さの外へ出てから数える）
 
 var sim: Sim
 var _spans: Array = []  # 列ごとの人がいる区間（_occupied）
@@ -18,9 +24,16 @@ func _init(s: Sim) -> void:
     sim = s
 
 func route(w: Walker, goal: Vector3, delta: float) -> Vector3:
+    var pos := w.node.position
+    if w.detour_time > 0.0:
+        w.detour_time -= delta
+        while not w.detour.is_empty() and Vector2(pos.x, pos.z).distance_to(w.detour[0]) < ROUND_MARGIN * 0.5:
+            w.detour.remove_at(0)
+        if not w.detour.is_empty():
+            return Vector3(w.detour[0].x, 0.0, w.detour[0].y)
+        w.detour_time = 0.0
     if not sim.two_routes:
         return goal
-    var pos := w.node.position
     var via: Variant = _via_point(w.via)
     if via == null or pos.distance_to(via) < ROUND_MARGIN * 0.5:
         if w.via.x >= 0:
@@ -38,6 +51,43 @@ func route(w: Walker, goal: Vector3, delta: float) -> Vector3:
                 w.via = c
         via = _via_point(w.via)
     return via if via != null else goal
+
+# 歩こうとしているのに STUCK_TIME 秒たっても STUCK_MOVE 動けなければ、寄り道の点を決める（moving: 歩こうとしているか）
+# 列の人と向かい合ったまま動けないとき（列の当たり判定 line_margin が太いと、止まった列は人の間を抜けられない壁になる）など
+# 寄り道の道がゴールに届かないか、寄り道しても動けなければ、列の人の間をすり抜ける（squeeze）
+func watch_stuck(w: Walker, goal: Vector3, moving: bool, delta: float) -> void:
+    # 列の人の太さの内側にいる間はすり抜けを終えない（終えると押し出しで一気に飛ぶ）
+    if w.squeeze > 0.0 and sim.walkers.all(func(o: Walker) -> bool: return o.state != State.ON_LINE or sim.crossing.gap(o, w) >= 0.0):
+        w.squeeze = maxf(w.squeeze - delta, 0.0)
+    if not moving or w.node.position.distance_to(w.stuck_at) > STUCK_MOVE:
+        w.stuck_at = w.node.position
+        w.stuck_time = 0.0
+        return
+    w.stuck_time += delta
+    if w.stuck_time < STUCK_TIME:
+        return
+    w.stuck_time = 0.0
+    var path := _detour(w, goal)
+    # 道がゴールに届かない（ゴールが列の太さの中にある・列に囲まれている）か、寄り道の途中でまた動けなくなった
+    if path.is_empty() or path[-1] != Vector2(goal.x, goal.z) or w.detour_time > 0.0:
+        w.squeeze = SQUEEZE_TIME
+        w.detour.clear()
+        w.detour_time = 0.0
+    else:
+        w.detour = path
+        w.detour_time = DETOUR_TIME
+
+# 寄り道の道: 今いるほかの人（列の人は当たり判定の太さで）も障害物と見なして、ゴールまでの経路を探す
+# 止まった列が壁になっていれば、その端を回り込む道になる（U 字の列でも）
+# shortcut: ほかの人は今の位置で止まっていると見なす（動く人は先読みしない）。人を正方形で塗るので、斜めのすき間は実際より狭く見る
+func _detour(w: Walker, goal: Vector3) -> PackedVector2Array:
+    var rects: Array[Rect2] = sim.rects_for(w).duplicate()
+    for o in sim.walkers:
+        if o != w:
+            var r := sim.hit_radius(o)
+            rects.append(Rect2(o.node.position.x - r, o.node.position.z - r, r * 2.0, r * 2.0))
+    var grid := Geometry.make_grid(rects, Vector2(sim.spawn_half_x, sim.spawn_half_z), w.radius)
+    return Geometry.find_path(grid, Vector2(w.node.position.x, w.node.position.z), Vector2(goal.x, goal.z), rects, w.radius)
 
 func _path_cost(pos: Vector3, via: Variant, goal: Vector3) -> float:
     return leg_cost(pos, via) + leg_cost(via, goal) if via != null else leg_cost(pos, goal)

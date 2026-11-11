@@ -22,7 +22,7 @@ mesh = SubResource("BoxMesh_1vivr")
 
 [node name="Plane3" type="MeshInstance2D" parent="." unique_id=671435308]
 modulate = Color(0.75, 0.75, 0.75, 1)
-position = Vector2(1400, 780)
+position = Vector2(1416, 782)
 rotation = -3.1415925
 mesh = SubResource("BoxMesh_1vivr")
 

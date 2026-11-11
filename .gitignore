@@ -9,6 +9,7 @@
 trash/
 README/中間発表
 README/論文
+README/参考
 # Godot 4+ specific ignores
 .godot/
 *.translation

@@ -7,7 +7,10 @@
 extends AcceptDialog
 
 const Motion := preload("res://script/core/Motion.gd")
+const Config := preload("res://script/core/Config.gd")
 
+var _advanced := CheckButton.new()  # オフなら Config.is_advanced の項目を隠す（値は保存時に残す）
+var _fields: Array
 var _sections := ItemList.new()
 var _scroll := ScrollContainer.new()
 var _pages := VBoxContainer.new()
@@ -20,8 +23,15 @@ var _section_labels := {}
 func _init() -> void:
     ok_button_text = "保存"
     add_cancel_button("キャンセル")
+    var box := VBoxContainer.new()
+    add_child(box)
+    _advanced.text = "詳細"
+    _advanced.tooltip_text = "細かい動きの設定も出す"
+    _advanced.toggled.connect(func(_on: bool) -> void: _rebuild())
+    box.add_child(_advanced)
     var row := HBoxContainer.new()
-    add_child(row)
+    row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    box.add_child(row)
     _sections.custom_minimum_size = Vector2(160, 0)
     _sections.item_selected.connect(_show_page)
     row.add_child(_sections)
@@ -31,7 +41,7 @@ func _init() -> void:
     _scroll.add_child(_pages)
     row.add_child(_scroll)
     _pages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    confirmed.connect(func() -> void: _on_ok.call(_read_values()))
+    confirmed.connect(func() -> void: _on_ok.call(_values.merged(_read_values(), true)))  # 隠した項目も開いたときの値で返す（既定値に戻さない）
 
 # section_labels: セクション名 → 左の一覧に出す名前（無いものはセクション名のまま）
 # fields_for: 項目を値によって変えるとき（動物体の設定）。fields の代わりに fields_for.call(values) を使う
@@ -41,6 +51,7 @@ func open(title_text: String, fields: Array, values: Dictionary, on_ok: Callable
     _fields_for = fields_for
     _values = values.duplicate()
     _section_labels = section_labels
+    _fields = fields
     _build(fields_for.call(_values) if fields_for.is_valid() else fields)
     popup_centered()
 
@@ -52,7 +63,7 @@ func _build(fields: Array) -> void:
     _inputs.clear()
 
     var grids := {}  # セクション → GridContainer（1ページ）
-    for f in fields:
+    for f in fields.filter(func(x: Dictionary) -> bool: return _advanced.button_pressed or not Config.is_advanced(x)):
         var section: String = f["section"]
         if not grids.has(section):
             var grid := GridContainer.new()
@@ -71,7 +82,7 @@ func _build(fields: Array) -> void:
 # 動きを変えたら項目を作り直す（入力中の値は残す）
 func _rebuild() -> void:
     _values.merge(_read_values(), true)
-    _build.call_deferred(_fields_for.call(_values))
+    _build.call_deferred(_fields_for.call(_values) if _fields_for.is_valid() else _fields)
 
 func _add_row(grid: GridContainer, f: Dictionary, v: Variant) -> void:
     if f.has("heading"):  # この項目から下は別のまとまり（動物体のページの、動きのスクリプトの項目）

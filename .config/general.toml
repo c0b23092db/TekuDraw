@@ -41,13 +41,14 @@ end_open_time = 10.0
 end_close_time = 0.0
 accept_count = 0
 accept_time = 1.0
+cross_fence = false
 
 [avoidance]
 
-body_radius = 0.2
+body_radius = 0.15
 avoid_radius = 2.0
 avoid_strength = 3.0
-yield_distance = 0.2
+yield_distance = 0.15
 avoid_range = 0.1
 anticipation_time = 1.0
 turn_time = 0.3
